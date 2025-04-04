@@ -1,0 +1,785 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2575.4">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
+    span.s1 {font-kerning: none}
+  </style>
+</head>
+<body>
+<p class="p1"><span class="s1">&lt;!DOCTYPE html&gt;</span></p>
+<p class="p1"><span class="s1">&lt;html lang="pt-BR"&gt;</span></p>
+<p class="p1"><span class="s1">&lt;head&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;title&gt;Transmissor WebRTC 4K&lt;/title&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;style&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>:root {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--primary-color: #2563EB;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--danger-color: #DC2626;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--success-color: #16A34A;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--text-color: #E5E7EB;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--bg-color: #1F2937;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--card-bg: #111827;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--border-color: #374151;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>* {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-sizing: border-box;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>body {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background: var(--bg-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: var(--text-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>min-height: 100vh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>flex-direction: column;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.container {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>width: 100%;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>max-width: 1200px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin: 0 auto;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 20px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>header {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>text-align: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 1rem 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-bottom: 1px solid var(--border-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 2rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>h1, h2, h3 {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 700;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.status-badge {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: inline-block;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0.5rem 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 9999px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 700;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>text-align: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.status-offline {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--danger-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.status-online {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--success-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.card {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background: var(--card-bg);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 8px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 1.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: 1px solid var(--border-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.flex {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.flex-col {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>flex-direction: column;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.grid {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: grid;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>grid-template-columns: 1fr 1fr;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>gap: 1.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>@media (max-width: 768px) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>.grid {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>grid-template-columns: 1fr;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>label {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: block;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 600;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 0.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>input[type="text"], select {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>width: 100%;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0.75rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background: var(--bg-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: 1px solid var(--border-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: var(--text-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>button {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0.75rem 1.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 600;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>cursor: pointer;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: all 0.2s ease;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: none;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: inline-flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>align-items: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>justify-content: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>gap: 0.5rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>button:disabled {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>opacity: 0.6;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>cursor: not-allowed;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-primary {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--primary-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: white;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-primary:hover:not(:disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: #1D4ED8;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-danger {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--danger-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: white;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-danger:hover:not(:disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: #B91C1C;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-group {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: flex;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>gap: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-top: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>video {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>width: 100%;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: #000;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-top: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>max-height: 70vh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>object-fit: contain;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.stats-container {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-top: 1rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-family: monospace;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 0.9rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: rgba(0, 0, 0, 0.2);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0.75rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>max-height: 150px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>overflow-y: auto;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>footer {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-top: auto;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 1rem 0;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>text-align: center;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-top: 1px solid var(--border-color);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 0.875rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: #9CA3AF;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.hidden {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: none;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/head&gt;</span></p>
+<p class="p1"><span class="s1">&lt;body&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;div class="container"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;header&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;h1&gt;Transmissor WebRTC 4K&lt;/h1&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div id="status" class="status-badge status-offline"&gt;OFFLINE&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/header&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div class="grid"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="card"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;h2&gt;Configurações da Transmissão&lt;/h2&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="roomId"&gt;&lt;b&gt;ID da Sala:&lt;/b&gt;&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;input type="text" id="roomId" value="ios-camera" placeholder="Nome da sala"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="videoSource"&gt;&lt;b&gt;Fonte de Vídeo:&lt;/b&gt;&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;select id="videoSource"&gt;&lt;/select&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="videoQuality"&gt;&lt;b&gt;Qualidade de Vídeo:&lt;/b&gt;&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;select id="videoQuality"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="2160p" selected&gt;2160p (4K UHD)&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="1440p"&gt;1440p (QHD)&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="1080p"&gt;1080p (Full HD)&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="720p"&gt;720p (HD)&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;/select&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="frameRate"&gt;&lt;b&gt;Taxa de Quadros:&lt;/b&gt;&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;select id="frameRate"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="60" selected&gt;60 FPS&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="30"&gt;30 FPS&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="24"&gt;24 FPS&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>&lt;option value="15"&gt;15 FPS (economiza banda)&lt;/option&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;/select&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="btn-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;button id="startButton" class="btn-primary"&gt;Iniciar Transmissão&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;button id="stopButton" class="btn-danger" disabled&gt;Parar Transmissão&lt;/button&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="card"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;h2&gt;Preview Local&lt;/h2&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;video id="localVideo" autoplay muted playsinline&gt;&lt;/video&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div id="statsPanel" class="stats-container hidden"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;div id="videoStats"&gt;&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;div id="connectionStats"&gt;&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;footer&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>WebRTC Camera Preview Tweak - Transmissor Otimizado para 4K/60fps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/footer&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;script&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Elementos da página</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const startButton = document.getElementById('startButton');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const stopButton = document.getElementById('stopButton');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoSource = document.getElementById('videoSource');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoQuality = document.getElementById('videoQuality');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const frameRate = document.getElementById('frameRate');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const localVideo = document.getElementById('localVideo');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const roomIdInput = document.getElementById('roomId');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const statusDiv = document.getElementById('status');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoStats = document.getElementById('videoStats');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const connectionStats = document.getElementById('connectionStats');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const statsPanel = document.getElementById('statsPanel');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Variáveis WebRTC</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let localStream;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let peerConnection;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let ws;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let statsInterval;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const serverUrl = location.hostname === 'localhost' || location.hostname === '127.0.0.1'<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>? `ws://${location.host}`<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>: `ws://${location.hostname}:8080`;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Mapeamento de qualidades de vídeo</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoQualities = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>'720p': { width: 1280, height: 720 },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>'1080p': { width: 1920, height: 1080 },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>'1440p': { width: 2560, height: 1440 },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>'2160p': { width: 3840, height: 2160 }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Inicialização</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function initialize() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Inicializando câmeras...', false);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Verificar suporte a getUserMedia</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>throw new Error('Seu navegador não suporta acesso à câmera (getUserMedia)');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Listar dispositivos de vídeo disponíveis</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const devices = await navigator.mediaDevices.enumerateDevices();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const videoDevices = devices.filter(device =&gt; device.kind === 'videoinput');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Adicionar opções ao select</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.innerHTML = '';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoDevices.forEach(device =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const option = document.createElement('option');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>option.value = device.deviceId;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>option.text = device.label || `Câmera ${videoSource.length + 1}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoSource.appendChild(option);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Se não houver rótulos, solicitar permissão de câmera</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (videoDevices.length &gt; 0 &amp;&amp; !videoDevices[0].label) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await getLocalMediaStream();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Listar novamente para obter rótulos</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await initialize();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (videoDevices.length === 0) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Nenhuma câmera encontrada', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} else {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Pronto para transmitir', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Configurar IDs de câmera preferenciais para melhor qualidade</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const preferredCameras = videoDevices.filter(device =&gt;<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('hd') ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('4k') ||</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('pro')</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (preferredCameras.length &gt; 0) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoSource.value = preferredCameras[0].deviceId;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao inicializar:', error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro: ${error.message}`, false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Obter stream local com qualidade configurada</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function getLocalMediaStream() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (localStream) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>localStream.getTracks().forEach(track =&gt; track.stop());</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Obter qualidade selecionada</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const quality = videoQualities[videoQuality.value];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const fps = parseInt(frameRate.value);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Configurando vídeo: ${quality.width}x${quality.height} a ${fps}fps`);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const constraints = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>audio: false,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>video: {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>deviceId: videoSource.value ? { exact: videoSource.value } : undefined,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>width: { ideal: quality.width },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>height: { ideal: quality.height },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>frameRate: { ideal: fps }</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>localStream = await navigator.mediaDevices.getUserMedia(constraints);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Log das configurações reais obtidas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const videoTrack = localStream.getVideoTracks()[0];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (videoTrack) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const settings = videoTrack.getSettings();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Configurações reais do vídeo:', settings);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoStats.innerHTML = `Fonte: ${videoTrack.label}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`Resolução: ${settings.width}x${settings.height}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`FPS: ${settings.frameRate || 'desconhecido'}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`Aspect Ratio: ${(settings.width/settings.height).toFixed(2)}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>statsPanel.classList.remove('hidden');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>localVideo.srcObject = localStream;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return localStream;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao acessar câmera:', error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro ao acessar câmera: ${error.message}`, false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>throw error;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Configurar conexão WebRTC</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function setupPeerConnection() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const config = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceServers: [</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>{ urls: 'stun:stun.l.google.com:19302' },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>{ urls: 'stun:stun1.l.google.com:19302' },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceTransportPolicy: 'all',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>bundlePolicy: 'max-bundle',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>rtcpMuxPolicy: 'require',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sdpSemantics: 'unified-plan',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Otimizações para redes locais</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceCandidatePoolSize: 0</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>peerConnection = new RTCPeerConnection(config);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Adicionar stream de vídeo</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>localStream.getTracks().forEach(track =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Adicionando track: ${track.kind}`);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection.addTrack(track, localStream);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>});</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Configurar eventos</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>peerConnection.onicecandidate = event =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (event.candidate) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sendMessage({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'ice-candidate',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>candidate: event.candidate.candidate,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>sdpMid: event.candidate.sdpMid,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>sdpMLineIndex: event.candidate.sdpMLineIndex,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>roomId: roomIdInput.value</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>peerConnection.oniceconnectionstatechange = () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('ICE State:', peerConnection.iceConnectionState);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectionStats.innerHTML = `ICE State: ${peerConnection.iceConnectionState}`;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (peerConnection.iceConnectionState === 'connected' ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>peerConnection.iceConnectionState === 'completed') {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Conectado ao dispositivo iOS', true);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} else if (peerConnection.iceConnectionState === 'disconnected' ||</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                          </span>peerConnection.iceConnectionState === 'failed' ||</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                          </span>peerConnection.iceConnectionState === 'closed') {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Dispositivo desconectado', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Monitor de estatísticas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>startStatsMonitor();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Iniciar monitoramento de estatísticas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function startStatsMonitor() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (statsInterval) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>clearInterval(statsInterval);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>statsInterval = setInterval(async () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!peerConnection) return;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const stats = await peerConnection.getStats();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let outboundRtpStats;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stats.forEach(stat =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (stat.type === 'outbound-rtp' &amp;&amp; stat.kind === 'video') {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>outboundRtpStats = stat;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (outboundRtpStats) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const { bytesSent, packetsSent, framesSent, framesPerSecond } = outboundRtpStats;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>connectionStats.innerHTML = `ICE State: ${peerConnection.iceConnectionState}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Dados enviados: ${formatBytes(bytesSent)}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Pacotes enviados: ${packetsSent}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Frames enviados: ${framesSent}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`FPS atual: ${framesPerSecond || 'desconhecido'}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 1000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Formatar bytes para exibição</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function formatBytes(bytes, decimals = 2) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bytes === 0) return '0 Bytes';</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const k = 1024;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const sizes = ['Bytes', 'KB', 'MB', 'GB'];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const i = Math.floor(Math.log(bytes) / Math.log(k));</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Conectar ao servidor WebSocket</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function connectWebSocket() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws = new WebSocket(serverUrl);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onopen = () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket conectado');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sendMessage({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'join',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Conectado ao servidor', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onclose = () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket desconectado');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Desconectado do servidor', false);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Tentar reconectar após 3 segundos</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>setTimeout(() =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (startButton.disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>connectWebSocket();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}, 3000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onerror = (error) =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('WebSocket erro:', error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Erro de conexão', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onmessage = (event) =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const message = JSON.parse(event.data);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>handleMessage(message);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Enviar mensagem para o servidor</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function sendMessage(message) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ws.send(JSON.stringify(message));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Processar mensagens recebidas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function handleMessage(message) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>console.log('Mensagem recebida:', message.type);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>switch (message.type) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'user-joined':</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Dispositivo iOS conectado');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Criar oferta quando o iOS se conectar</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await createAndSendOffer();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'answer':</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Recebendo resposta do iOS</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await peerConnection.setRemoteDescription(new RTCSessionDescription({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'answer',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>sdp: message.sdp</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'ice-candidate':</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Recebendo candidato ICE</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (peerConnection) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>await peerConnection.addIceCandidate(new RTCIceCandidate({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>candidate: message.candidate,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>sdpMid: message.sdpMid,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>sdpMLineIndex: message.sdpMLineIndex</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>} catch (e) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>console.error('Erro ao adicionar candidato ICE:', e);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'error':</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.error('Erro recebido do servidor:', message.message);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus(`Erro: ${message.message}`, false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Criar e enviar oferta WebRTC</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function createAndSendOffer() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Configurar para alta qualidade de vídeo</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const offerOptions = {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>offerToReceiveAudio: false,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>offerToReceiveVideo: false</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>};</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const offer = await peerConnection.createOffer(offerOptions);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Modificar SDP para forçar parâmetros de alta qualidade</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let sdp = offer.sdp;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Força H.264 como codec preferido quando disponível</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (sdp.includes('H264')) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('H264 disponível, otimizando para alta qualidade');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Melhorar profile do H264 para alta resolução</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp = sdp.replace(/profile-level-id=[0-9a-fA-F]+/g, 'profile-level-id=640032');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Aumentar bitrate para vídeo 4K</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp = setMediaBitrate(sdp, 'video', 20000); // 20Mbps para 4K</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Aplicar a SDP modificada</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const modifiedOffer = new RTCSessionDescription({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'offer',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp: sdp</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>await peerConnection.setLocalDescription(modifiedOffer);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sendMessage({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'offer',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp: peerConnection.localDescription.sdp,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao criar oferta:', error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro ao criar oferta WebRTC: ${error.message}`, false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Helper para configurar bitrate específico na SDP</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function setMediaBitrate(sdp, media, bitrate) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const lines = sdp.split('\n');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let line = -1;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Encontrar a seção m=video</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>for (let i = 0; i &lt; lines.length; i++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('m=' + media)) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>line = i;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (line === -1) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return sdp;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Encontrar linha b= existente ou adicionar nova</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let found = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>for (let i = line; i &lt; lines.length; i++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('m=')) break; // Próxima seção m=</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('b=AS:')) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>lines[i] = 'b=AS:' + bitrate;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>found = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (!found) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Adicionar linha b= após a seção m=</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const newLines = lines.slice(0, line + 1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>newLines.push('b=AS:' + bitrate);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>newLines.push(...lines.slice(line + 1));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return newLines.join('\n');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>return lines.join('\n');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Atualizar status na interface</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function updateStatus(message, isConnected) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>statusDiv.textContent = message;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (isConnected) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.remove('status-offline');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('status-online');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} else {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.remove('status-online');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('status-offline');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Iniciar transmissão</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function startStreaming() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!roomIdInput.value.trim()) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>alert("Por favor, informe um ID de sala");</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopButton.disabled = false;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Desabilitar troca de qualidade durante streaming</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = true;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Obter stream de vídeo com qualidade selecionada</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>await getLocalMediaStream();</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Configurar WebRTC</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>setupPeerConnection();</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Conectar ao servidor</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectWebSocket();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao iniciar transmissão:', error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopButton.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro: ${error.message}`, false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Parar transmissão</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function stopStreaming() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>startButton.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>stopButton.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>roomIdInput.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoSource.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoQuality.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>frameRate.disabled = false;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Enviar mensagem de despedida</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sendMessage({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'bye',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Parar monitoramento de estatísticas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (statsInterval) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>clearInterval(statsInterval);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statsInterval = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Fechar conexão WebRTC</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (peerConnection) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection.close();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Fechar WebSocket</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (ws) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ws.close();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ws = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Parar streams</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (localStream) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>localStream.getTracks().forEach(track =&gt; track.stop());</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>localStream = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>localVideo.srcObject = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Esconder painel de estatísticas</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>statsPanel.classList.add('hidden');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>updateStatus('Desconectado', false);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Adicionar event listeners</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>startButton.addEventListener('click', startStreaming);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>stopButton.addEventListener('click', stopStreaming);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Verificar permissões de câmera quando mudar qualidade</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>videoQuality.addEventListener('change', async () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (!localStream) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>try {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Mostrar preview quando o usuário mudar qualidade</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await getLocalMediaStream();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} catch (error) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.error("Erro ao atualizar stream:", error);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Inicializar quando a página carregar</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('DOMContentLoaded', initialize);</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Detectar quando a página é fechada para limpar recursos</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('beforeunload', stopStreaming);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</span></p>
+</body>
+</html>

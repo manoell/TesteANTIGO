@@ -205,6 +205,48 @@
     }
 }
 
+- (void)sendByeMessage {
+    @try {
+        if (!self.webSocketTask || self.webSocketTask.state != NSURLSessionTaskStateRunning) {
+            writeLog(@"[WebRTCManager] Não foi possível enviar 'bye', WebSocket não está conectado");
+            return;
+        }
+        
+        // Log de debug
+        writeLog(@"[WebRTCManager] Enviando mensagem 'bye' para o servidor");
+        
+        // Criar mensagem de bye
+        NSDictionary *byeMessage = @{
+            @"type": @"bye",
+            @"roomId": self.roomId ?: @"ios-camera"
+        };
+        
+        // Serializar para JSON
+        NSError *error = nil;
+        NSData *jsonData = [NSJSONSerialization dataWithJSONObject:byeMessage options:0 error:&error];
+        
+        if (error) {
+            writeLog(@"[WebRTCManager] Erro ao serializar mensagem bye: %@", error);
+            return;
+        }
+        
+        // Converter para string
+        NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        
+        // Enviar diretamente (sem usar sendWebSocketMessage para evitar dependências)
+        [self.webSocketTask sendMessage:[[NSURLSessionWebSocketMessage alloc] initWithString:jsonString]
+                    completionHandler:^(NSError * _Nullable sendError) {
+            if (sendError) {
+                writeLog(@"[WebRTCManager] Erro ao enviar bye: %@", sendError);
+            } else {
+                writeLog(@"[WebRTCManager] Mensagem 'bye' enviada com sucesso");
+            }
+        }];
+    } @catch (NSException *exception) {
+        writeLog(@"[WebRTCManager] Exceção ao enviar bye: %@", exception);
+    }
+}
+
 #pragma mark - Timer Management
 
 - (void)startStatsTimer {

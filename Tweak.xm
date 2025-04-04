@@ -1,4 +1,5 @@
 #import "FloatingWindow.h"
+#import "WebRTCManager.h"
 #import <UIKit/UIKit.h>
 #import "logger.h"
 
@@ -10,17 +11,15 @@ static FloatingWindow *floatingWindow;
     %orig;
     writeLog(@"Tweak carregado em SpringBoard");
     
-    // Inicializar a janela flutuante no thread principal
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         writeLog(@"Inicializando FloatingWindow");
         
-        // Criar janela com tamanho menor para começar
-        CGRect windowFrame = CGRectMake(20, 60, 160, 240);
-        floatingWindow = [[FloatingWindow alloc] initWithFrame:windowFrame];
+        floatingWindow = [[FloatingWindow alloc] init];
+        WebRTCManager *manager = [[WebRTCManager alloc] initWithFloatingWindow:floatingWindow];
+        floatingWindow.webRTCManager = manager;
         
-        // Mostrar a janela
         [floatingWindow show];
-        writeLog(@"Janela flutuante exibida");
+        writeLog(@"Janela flutuante exibida em modo minimizado");
     });
 }
 
@@ -32,6 +31,8 @@ static FloatingWindow *floatingWindow;
 
 %dtor {
     writeLog(@"Destructor chamado");
-    [floatingWindow hide];
+    if (floatingWindow) {
+        [floatingWindow hide];
+    }
     floatingWindow = nil;
 }

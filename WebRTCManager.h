@@ -29,10 +29,20 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 @property (nonatomic, assign, readonly) WebRTCManagerState state;
 @property (nonatomic, assign, readonly) BOOL isReceivingFrames;
 
+// Inicializa o gerenciador WebRTC com o delegate fornecido
 - (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;
+
+// Inicia a conexão WebRTC com as configurações atuais
 - (void)startWebRTC;
+
+// Para a conexão WebRTC
+// @param userInitiated YES se a ação foi iniciada pelo usuário
 - (void)stopWebRTC:(BOOL)userInitiated;
+
+// Envia mensagem de despedida para o servidor antes de desconectar
 - (void)sendByeMessage;
+
+// Retorna estatísticas sobre a conexão atual
 - (NSDictionary *)getConnectionStats;
 
 @end

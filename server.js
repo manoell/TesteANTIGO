@@ -1,5 +1,5 @@
 /**
- * WebRTC Signaling Server - Optimized with fixes for connection issues
+ * WebRTC Signaling Server - Otimizado para conexões de rede local e vídeo 4K
  */
 
 const express = require('express');
@@ -9,30 +9,30 @@ const cors = require('cors');
 const path = require('path');
 const os = require('os');
 
-// Configuration
+// Configuração
 const PORT = process.env.PORT || 8080;
-const MAX_CONNECTIONS_PER_ROOM = 10;  // Transmitter + receiver
+const MAX_CONNECTIONS_PER_ROOM = 10;  // Transmissor + receptor
 const ROOM_DEFAULT = 'ios-camera';
 
-// Setup Express app
+// Configurar app Express
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Create HTTP and WebSocket servers
+// Criar servidor HTTP e WebSocket
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ 
   server,
-  maxPayload: 64 * 1024 * 1024  // 64MB max payload for 4K video
+  maxPayload: 64 * 1024 * 1024  // 64MB payload máximo para vídeo 4K
 });
 
-// Store connections and room data
+// Armazenar conexões e dados das salas
 const rooms = new Map();
 const clients = new Map();
 
 /**
- * Simple logging function with timestamp
+ * Função de log simples com timestamp
  */
 function log(message, isError = false) {
   const timestamp = new Date().toISOString();
@@ -42,12 +42,12 @@ function log(message, isError = false) {
 }
 
 /**
- * Class to manage a WebRTC room
+ * Classe para gerenciar uma sala WebRTC
  */
 class Room {
   constructor(id) {
     this.id = id;
-    this.clients = new Map(); // Changed to Map to store clientId -> client
+    this.clients = new Map(); // Alterado para Map para armazenar clientId -> client
     this.offers = [];
     this.answers = [];
     this.iceCandidates = [];
@@ -61,7 +61,7 @@ class Room {
 
   addClient(client) {
     if (this.clients.has(client.id)) {
-      log(`Client ${client.id} already in room ${this.id}, ignoring duplicate join`);
+      log(`Cliente ${client.id} já está na sala ${this.id}, ignorando entrada duplicada`);
       return this.clients.size;
     }
     
@@ -76,7 +76,7 @@ class Room {
     const removed = this.clients.delete(client.id);
     if (removed) {
       this.lastActivity = new Date();
-      log(`Client ${client.id} removed from room ${this.id}, remaining: ${this.clients.size}`);
+      log(`Cliente ${client.id} removido da sala ${this.id}, restantes: ${this.clients.size}`);
     }
     return removed;
   }
@@ -101,16 +101,23 @@ class Room {
     message.timestamp = Date.now();
     
     if (type === 'offer') {
+      // Para ofertas, armazenar apenas a mais recente
       this.offers.push(message);
-      if (this.offers.length > 5) this.offers.shift();
+      if (this.offers.length > 2) this.offers.shift(); // Manter apenas as 2 últimas ofertas
     } 
     else if (type === 'answer') {
+      // Para respostas, armazenar apenas a mais recente
       this.answers.push(message);
-      if (this.answers.length > 5) this.answers.shift();
+      if (this.answers.length > 2) this.answers.shift(); // Manter apenas as 2 últimas respostas
     }
     else if (type === 'ice-candidate') {
-      // Check if this is a duplicate candidate - we need to be extremely careful about the comparison
-      // since ice candidates can be very similar but different in subtle ways
+      // Para candidatos ICE, priorizar candidatos de tipo "host" (conexões locais diretas)
+      // e filtrar duplicatas
+      
+      // Verificar se é candidato de tipo "host" (conexão direta, melhor para rede local)
+      const isHostCandidate = message.candidate && message.candidate.includes('typ host');
+      
+      // Verificar se é um candidato duplicado
       const isDuplicate = this.iceCandidates.some(c => 
         c.senderId === message.senderId && 
         c.candidate === message.candidate && 
@@ -119,16 +126,32 @@ class Room {
       );
       
       if (!isDuplicate) {
-        this.iceCandidates.push(message);
-        // Limit the number but keep enough for reconnection
-        if (this.iceCandidates.length > 50) this.iceCandidates.shift();
+        // Se for candidato de tipo host ou se temos poucos candidatos, armazenar
+        if (isHostCandidate || this.iceCandidates.length < 20) {
+          this.iceCandidates.push(message);
+          
+          // Limitar a quantidade total
+          if (this.iceCandidates.length > 30) {
+            // Remover candidatos não-host primeiro
+            const nonHostCandidateIndex = this.iceCandidates.findIndex(c => 
+              !c.candidate || !c.candidate.includes('typ host')
+            );
+            
+            if (nonHostCandidateIndex >= 0) {
+              this.iceCandidates.splice(nonHostCandidateIndex, 1);
+            } else {
+              // Se não houver candidatos não-host, remover o mais antigo
+              this.iceCandidates.shift();
+            }
+          }
+        }
       } else {
-        log(`Skipping duplicate ICE candidate from ${message.senderId}`);
+        log(`Ignorando candidato ICE duplicado de ${message.senderId}`);
       }
     }
   }
 
-  // Return statistics about this room
+  // Retornar estatísticas sobre esta sala
   getStats() {
     return {
       id: this.id,
@@ -143,24 +166,24 @@ class Room {
 }
 
 /**
- * Get or create a room
+ * Obter ou criar uma sala
  */
 function getOrCreateRoom(roomId) {
   if (!rooms.has(roomId)) {
     rooms.set(roomId, new Room(roomId));
-    log(`New room created: ${roomId}`);
+    log(`Nova sala criada: ${roomId}`);
   }
   return rooms.get(roomId);
 }
 
 /**
- * Clean closed connections from rooms
+ * Limpar conexões fechadas das salas
  */
 function cleanupRooms() {
   let removedClients = 0;
   let removedRooms = 0;
   
-  // First clean up clients that are no longer connected
+  // Primeiro, limpar clientes que não estão mais conectados
   rooms.forEach((room, id) => {
     room.clients.forEach((client, clientId) => {
       if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
@@ -170,7 +193,7 @@ function cleanupRooms() {
       }
     });
     
-    // Then remove empty rooms
+    // Em seguida, remover salas vazias
     if (room.isEmpty()) {
       rooms.delete(id);
       removedRooms++;
@@ -178,15 +201,15 @@ function cleanupRooms() {
   });
   
   if (removedClients > 0 || removedRooms > 0) {
-    log(`Cleanup: removed ${removedClients} disconnected clients and ${removedRooms} empty rooms. Remaining rooms: ${rooms.size}`);
+    log(`Limpeza: removidos ${removedClients} clientes desconectados e ${removedRooms} salas vazias. Salas restantes: ${rooms.size}`);
   }
 }
 
-// Setup periodic cleanup
+// Configurar limpeza periódica
 setInterval(cleanupRooms, 10000);
 
 /**
- * Analyze SDP quality for logging
+ * Analisar qualidade do SDP para logging
  */
 function analyzeSdpQuality(sdp) {
   if (!sdp) return { hasVideo: false };
@@ -195,11 +218,11 @@ function analyzeSdpQuality(sdp) {
     hasVideo: sdp.includes('m=video'),
     hasAudio: sdp.includes('m=audio'),
     hasH264: sdp.includes('H264'),
-    resolution: "unknown",
-    fps: "unknown"
+    resolution: "desconhecida",
+    fps: "desconhecido"
   };
   
-  // Try to extract resolution
+  // Tentar extrair resolução
   const resMatch = sdp.match(/a=imageattr:.*send.*\[x=([0-9]+)\-?([0-9]+)?\,y=([0-9]+)\-?([0-9]+)?]/i);
   if (resMatch && resMatch.length >= 4) {
     const width = resMatch[2] || resMatch[1];
@@ -207,7 +230,7 @@ function analyzeSdpQuality(sdp) {
     result.resolution = `${width}x${height}`;
   }
   
-  // Try to extract FPS
+  // Tentar extrair FPS
   const fpsMatch = sdp.match(/a=framerate:([0-9]+)/i);
   if (fpsMatch && fpsMatch.length >= 2) {
     result.fps = `${fpsMatch[1]}fps`;
@@ -217,14 +240,14 @@ function analyzeSdpQuality(sdp) {
 }
 
 /**
- * Optimize SDP for high quality video - with fix for duplicate rtx payload
+ * Otimizar SDP para vídeo de alta qualidade - com correção para payload rtx duplicado
  */
 function enhanceSdpForHighQuality(sdp) {
   if (!sdp.includes('m=video')) return sdp;
   
-  // Check if SDP already contains high bitrate settings
+  // Verificar se o SDP já contém configurações de alta taxa de bits
   if (sdp.includes('b=AS:20000')) {
-    return sdp; // Already optimized, don't modify to avoid duplicates
+    return sdp; // Já otimizado, não modificar para evitar duplicatas
   }
   
   const lines = sdp.split('\n');
@@ -232,45 +255,45 @@ function enhanceSdpForHighQuality(sdp) {
   let inVideoSection = false;
   let videoSectionModified = false;
   
-  // Keep track of payload types to avoid duplicates
+  // Controlar tipos de payload para evitar duplicatas
   const seenPayloads = new Set();
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
-    // Check for rtpmap lines with rtx codec to avoid duplicates
+    // Verificar linhas rtpmap com codec rtx para evitar duplicatas
     if (line.startsWith('a=rtpmap:') && line.includes('rtx/')) {
-      // Extract payload type (the number after "a=rtpmap:")
+      // Extrair tipo de payload (o número após "a=rtpmap:")
       const payloadMatch = line.match(/^a=rtpmap:(\d+)\s/);
       if (payloadMatch) {
         const payloadType = payloadMatch[1];
         if (seenPayloads.has(payloadType)) {
-          // Skip duplicate payload type
+          // Ignorar tipo de payload duplicado
           continue;
         }
         seenPayloads.add(payloadType);
       }
     }
     
-    // Detect video section
+    // Detectar seção de vídeo
     if (line.startsWith('m=video')) {
       inVideoSection = true;
     } else if (line.startsWith('m=')) {
       inVideoSection = false;
     }
     
-    // For video section, add bitrate if it doesn't exist
+    // Para seção de vídeo, adicionar taxa de bits se não existir
     if (inVideoSection && line.startsWith('c=') && !videoSectionModified) {
       newLines.push(line);
-      // Add high bitrate line for 4K after connection line
+      // Adicionar linha de alta taxa de bits para 4K após linha de conexão
       newLines.push(`b=AS:20000`);
       videoSectionModified = true;
       continue;
     }
     
-    // Modify H264 profile-level-id to support 4K, but only if not already set
+    // Modificar H.264 profile-level-id para suportar 4K, mas apenas se não já estiver definido
     if (inVideoSection && line.includes('profile-level-id') && line.includes('H264')) {
-      // Only replace if not already high profile
+      // Substituir apenas se ainda não for perfil alto
       if (!line.includes('profile-level-id=640032')) {
         const modifiedLine = line.replace(/profile-level-id=[0-9a-fA-F]+/i, 'profile-level-id=640032');
         newLines.push(modifiedLine);
@@ -284,27 +307,35 @@ function enhanceSdpForHighQuality(sdp) {
   return newLines.join('\n');
 }
 
-// Handle WebSocket connections
-wss.on('connection', (ws) => {
-  // Assign a unique ID to this client
+// Lidar com conexões WebSocket
+wss.on('connection', (ws, req) => {
+  // Atribuir um ID único a este cliente
   const clientId = Date.now().toString(36) + Math.random().toString(36).substring(2);
   ws.id = clientId;
   ws.isAlive = true;
   clients.set(clientId, ws);
   
-  log(`New WebSocket connection: ${clientId}`);
+  // Verificar se a conexão é local
+  const isLocalConnection = 
+    req.socket.remoteAddress === '127.0.0.1' || 
+    req.socket.remoteAddress === '::1' ||
+    req.socket.remoteAddress.startsWith('192.168.') ||
+    req.socket.remoteAddress.startsWith('10.') ||
+    req.socket.remoteAddress.startsWith('172.16.');
   
-  // Handle pong messages to track connection status
+  log(`Nova conexão WebSocket: ${clientId} de ${req.socket.remoteAddress} ${isLocalConnection ? '(local)' : '(remota)'}`);
+  
+  // Lidar com mensagens pong para rastrear status da conexão
   ws.on('pong', () => {
     ws.isAlive = true;
   });
   
-  // Handle errors
+  // Lidar com erros
   ws.on('error', (error) => {
-    log(`WebSocket error: ${error.message}`, true);
+    log(`Erro WebSocket: ${error.message}`, true);
   });
   
-  // Process incoming messages
+  // Processar mensagens recebidas
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
@@ -312,13 +343,13 @@ wss.on('connection', (ws) => {
       const msgRoomId = data.roomId || ROOM_DEFAULT;
       
       if (!msgType) {
-        log(`Received message without type from ${ws.id}`, true);
+        log(`Mensagem recebida sem tipo de ${ws.id}`, true);
         return;
       }
       
-      log(`Received ${msgType} message from ${ws.id} for room ${msgRoomId}`);
+      log(`Recebida mensagem ${msgType} de ${ws.id} para sala ${msgRoomId}`);
       
-      // Handle different message types
+      // Lidar com diferentes tipos de mensagem
       switch (msgType) {
         case 'join':
           handleJoinMessage(ws, msgRoomId);
@@ -335,61 +366,61 @@ wss.on('connection', (ws) => {
           break;
           
         default:
-          log(`Unknown message type: ${msgType}`, true);
+          log(`Tipo de mensagem desconhecido: ${msgType}`, true);
       }
     } catch (e) {
-      log(`Error processing message: ${e.message}`, true);
+      log(`Erro ao processar mensagem: ${e.message}`, true);
       ws.send(JSON.stringify({
         type: 'error', 
-        message: 'Invalid message format'
+        message: 'Formato de mensagem inválido'
       }));
     }
   });
   
-  // Handle disconnection
+  // Lidar com desconexão
   ws.on('close', () => {
-    log(`Client ${ws.id} disconnected`);
+    log(`Cliente ${ws.id} desconectado`);
     clients.delete(clientId);
     
-    // Notify room about the departure if client was in a room
+    // Notificar sala sobre a partida se o cliente estava em uma sala
     if (ws.roomId && rooms.has(ws.roomId)) {
       const room = rooms.get(ws.roomId);
       
-      // Notify other clients in the room
+      // Notificar outros clientes na sala
       room.broadcast({
         type: 'user-left',
         userId: ws.id
       });
       
-      // Remove the client from the room
+      // Remover o cliente da sala
       room.removeClient(ws);
     }
   });
 });
 
 /**
- * Handle 'join' message
+ * Lidar com mensagem 'join'
  */
 function handleJoinMessage(ws, roomId) {
-  // Check if we need to recreate a room (might have been deleted)
+  // Verificar se precisamos recriar uma sala (pode ter sido excluída)
   if (!rooms.has(roomId)) {
     const room = getOrCreateRoom(roomId);
-    log(`Room ${roomId} created for join request`);
+    log(`Sala ${roomId} criada para solicitação de entrada`);
   }
 
   const room = rooms.get(roomId);
 
-  // Check if client is already in this room - prevent duplicate joins
+  // Verificar se o cliente já está nesta sala - evitar entradas duplicadas
   if (ws.roomId === roomId && room.hasClient(ws.id)) {
-    log(`Client ${ws.id} already in room ${roomId}, ignoring duplicate join`);
+    log(`Cliente ${ws.id} já está na sala ${roomId}, ignorando entrada duplicada`);
     ws.send(JSON.stringify({
       type: 'info',
-      message: `Already joined room ${roomId}`
+      message: `Já entrou na sala ${roomId}`
     }));
     return;
   }
 
-  // If client was in another room, remove them
+  // Se o cliente estava em outra sala, removê-lo
   if (ws.roomId && rooms.has(ws.roomId)) {
     const oldRoom = rooms.get(ws.roomId);
     oldRoom.removeClient(ws);
@@ -397,55 +428,55 @@ function handleJoinMessage(ws, roomId) {
       type: 'user-left',
       userId: ws.id
     });
-    log(`Client ${ws.id} left room ${ws.roomId} to join ${roomId}`);
-    delete ws.roomId; // Explicitly remove the roomId property
+    log(`Cliente ${ws.id} saiu da sala ${ws.roomId} para entrar em ${roomId}`);
+    delete ws.roomId; // Remover explicitamente a propriedade roomId
   }
   
-  // Check room capacity
+  // Verificar capacidade da sala
   if (room.clients.size >= MAX_CONNECTIONS_PER_ROOM) {
-    // Look for closed connections in the room
+    // Procurar conexões fechadas na sala
     let hasCleaned = false;
     room.clients.forEach((client, id) => {
       if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
         room.removeClient(client);
         hasCleaned = true;
-        log(`Removed disconnected client ${id} from room ${roomId}`);
+        log(`Removido cliente desconectado ${id} da sala ${roomId}`);
       }
     });
     
-    // If room is still full after cleanup
+    // Se a sala ainda estiver cheia após a limpeza
     if (room.clients.size >= MAX_CONNECTIONS_PER_ROOM && !hasCleaned) {
       ws.send(JSON.stringify({
         type: 'error',
-        message: `Room '${roomId}' is full (max ${MAX_CONNECTIONS_PER_ROOM} clients)`
+        message: `Sala '${roomId}' está cheia (máx ${MAX_CONNECTIONS_PER_ROOM} clientes)`
       }));
-      log(`Join rejected, room ${roomId} is full`);
+      log(`Entrada rejeitada, sala ${roomId} está cheia`);
       return;
     }
   }
   
-  // Add client to room
+  // Adicionar cliente à sala
   const clientCount = room.addClient(ws);
-  log(`Client ${ws.id} joined room ${roomId}, total clients: ${clientCount}`);
+  log(`Cliente ${ws.id} entrou na sala ${roomId}, total de clientes: ${clientCount}`);
   
-  // Notify other clients
+  // Notificar outros clientes
   room.broadcast({
     type: 'user-joined',
     userId: ws.id
   }, ws.id);
   
-  // Send most recent offer if available
+  // Enviar oferta mais recente se disponível
   if (room.offers.length > 0) {
     const latestOffer = room.offers[room.offers.length - 1];
     ws.send(JSON.stringify(latestOffer));
   }
   
-  // Send ICE candidates if available
+  // Enviar candidatos ICE se disponíveis
   room.iceCandidates.forEach(candidate => {
     ws.send(JSON.stringify(candidate));
   });
   
-  // Send room info to client
+  // Enviar informações da sala para o cliente
   ws.send(JSON.stringify({
     type: 'room-info',
     clients: room.clients.size,
@@ -454,88 +485,88 @@ function handleJoinMessage(ws, roomId) {
 }
 
 /**
- * Handle WebRTC messages (offer, answer, ice-candidate)
+ * Lidar com mensagens WebRTC (offer, answer, ice-candidate)
  */
 function handleRtcMessage(ws, type, data, roomId) {
-  // Make sure client is in the specified room
+  // Garantir que o cliente esteja na sala especificada
   if (!ws.roomId || ws.roomId !== roomId) {
-    log(`Client ${ws.id} tried to send ${type} but is not in room ${roomId}`);
+    log(`Cliente ${ws.id} tentou enviar ${type}, mas não está na sala ${roomId}`);
     ws.send(JSON.stringify({
       type: 'error',
-      message: `You're not in room ${roomId}`
+      message: `Você não está na sala ${roomId}`
     }));
     return;
   }
   
   const room = rooms.get(roomId);
   if (!room) {
-    log(`Room ${roomId} doesn't exist for ${type} message`);
+    log(`Sala ${roomId} não existe para mensagem ${type}`);
     ws.send(JSON.stringify({
       type: 'error',
-      message: `Room ${roomId} doesn't exist`
+      message: `Sala ${roomId} não existe`
     }));
     return;
   }
   
-  // Add sender ID to the message
+  // Adicionar ID do remetente à mensagem
   data.senderId = ws.id;
   
-  // For offer or answer, log quality and optimize SDP if needed
+  // Para oferta ou resposta, registrar qualidade e otimizar SDP se necessário
   if ((type === 'offer' || type === 'answer') && data.sdp) {
     const quality = analyzeSdpQuality(data.sdp);
-    log(`${type} quality: video=${quality.hasVideo}, resolution=${quality.resolution}, fps=${quality.fps}`);
+    log(`Qualidade ${type}: vídeo=${quality.hasVideo}, resolução=${quality.resolution}, fps=${quality.fps}`);
     
-    // Enhance SDP for high quality if it's an offer
+    // Aprimorar SDP para alta qualidade se for uma oferta
     if (type === 'offer') {
       data.sdp = enhanceSdpForHighQuality(data.sdp);
     }
   }
   
-  // Store the message in the room
+  // Armazenar a mensagem na sala
   room.storeMessage(type, data);
   
-  // Broadcast to all other clients in the room
+  // Transmitir para todos os outros clientes na sala
   room.broadcast(data, ws.id);
 }
 
 /**
- * Handle 'bye' message
+ * Lidar com mensagem 'bye'
  */
 function handleByeMessage(ws, roomId) {
-  log(`Processing 'bye' message from client ${ws.id} for room ${roomId}`);
+  log(`Processando mensagem 'bye' do cliente ${ws.id} para sala ${roomId}`);
   
-  // Validate the client is actually in this room
+  // Validar se o cliente está realmente nesta sala
   if (!ws.roomId || ws.roomId !== roomId) {
-    log(`Client ${ws.id} sent 'bye' but is not in room ${roomId}`);
+    log(`Cliente ${ws.id} enviou 'bye', mas não está na sala ${roomId}`);
     return;
   }
   
   const room = rooms.get(roomId);
   if (!room) {
-    log(`Room ${roomId} doesn't exist for 'bye' message`);
+    log(`Sala ${roomId} não existe para mensagem 'bye'`);
     return;
   }
   
-  // Notify other clients
+  // Notificar outros clientes
   room.broadcast({
     type: 'peer-disconnected',
     userId: ws.id
   }, ws.id);
   
-  // Remove client from room
+  // Remover cliente da sala
   room.removeClient(ws);
   
-  // Important: set roomId to null to prevent duplicate bye/leave issues
+  // Importante: definir roomId como null para evitar problemas de bye/leave duplicados
   ws.roomId = null;
   
-  log(`Client ${ws.id} sent 'bye' and was removed from room ${roomId}`);
+  log(`Cliente ${ws.id} enviou 'bye' e foi removido da sala ${roomId}`);
 }
 
-// Set up ping interval to keep connections alive
+// Configurar intervalo de ping para manter conexões ativas
 const pingInterval = setInterval(() => {
   wss.clients.forEach(ws => {
     if (ws.isAlive === false) {
-      log(`Terminating inactive connection: ${ws.id}`);
+      log(`Terminando conexão inativa: ${ws.id}`);
       return ws.terminate();
     }
     
@@ -544,18 +575,18 @@ const pingInterval = setInterval(() => {
   });
 }, 30000);
 
-// Clean up interval when server closes
+// Limpar intervalo quando o servidor fechar
 wss.on('close', () => {
   clearInterval(pingInterval);
-  log('WebSocket server closed');
+  log('Servidor WebSocket fechado');
 });
 
-// Define routes
+// Definir rotas
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Server info endpoint
+// Endpoint para informações do servidor
 app.get('/info', (req, res) => {
   const roomsInfo = {};
   
@@ -571,25 +602,25 @@ app.get('/info', (req, res) => {
   });
 });
 
-// Room info endpoint
+// Endpoint para informações da sala
 app.get('/room/:roomId/info', (req, res) => {
   const roomId = req.params.roomId;
   
   if (!rooms.has(roomId)) {
-    return res.status(404).json({ error: 'Room not found' });
+    return res.status(404).json({ error: 'Sala não encontrada' });
   }
   
   res.json(rooms.get(roomId).getStats());
 });
 
-// Get local IP addresses
+// Obter endereços IP locais
 function getLocalIPs() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
   
   Object.keys(interfaces).forEach(interfaceName => {
     interfaces[interfaceName].forEach(iface => {
-      // Ignore IPv6 and loopback
+      // Ignorar IPv6 e loopback
       if (iface.family === 'IPv4' && !iface.internal) {
         addresses.push(iface.address);
       }
@@ -599,11 +630,11 @@ function getLocalIPs() {
   return addresses;
 }
 
-// Start server
+// Iniciar servidor
 server.listen(PORT, () => {
   const addresses = getLocalIPs();
   
-  log(`WebRTC signaling server running on port ${PORT}`);
-  log(`Available network interfaces: ${addresses.join(', ')}`);
-  log(`Web interface available at http://localhost:${PORT}`);
+  log(`Servidor de sinalização WebRTC rodando na porta ${PORT}`);
+  log(`Interfaces de rede disponíveis: ${addresses.join(', ')}`);
+  log(`Interface web disponível em http://localhost:${PORT}`);
 });

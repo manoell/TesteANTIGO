@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Style-Type" content="text/css">
   <title></title>
   <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.4">
+  <meta name="CocoaVersion" content="2575.5">
   <style type="text/css">
     p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
     p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
@@ -18,7 +18,7 @@
 <p class="p1"><span class="s1">&lt;head&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;title&gt;Transmissor WebRTC 4K&lt;/title&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;title&gt;WebRTC Streaming 4K - Rede Local&lt;/title&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;style&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>:root {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--primary-color: #2563EB;</span></p>
@@ -37,7 +37,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>body {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin: 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background: var(--bg-color);</span></p>
@@ -58,7 +58,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>text-align: center;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 1rem 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-bottom: 1px solid var(--border-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 2rem;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1.5rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>h1, h2, h3 {</span></p>
@@ -88,7 +88,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 8px;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 1.5rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1.5rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: 1px solid var(--border-color);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
@@ -204,22 +204,38 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.hidden {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: none;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>/* Otimizações para UI em dispositivos de alta resolução */</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>@media (min-width: 1920px) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>.container {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>max-width: 1600px;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>video {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>max-height: 80vh;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</span></p>
 <p class="p1"><span class="s1">&lt;/head&gt;</span></p>
 <p class="p1"><span class="s1">&lt;body&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;div class="container"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;header&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;h1&gt;Transmissor WebRTC 4K&lt;/h1&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;h1&gt;WebRTC Streaming 4K&lt;/h1&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div id="status" class="status-badge status-offline"&gt;OFFLINE&lt;/div&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;/header&gt;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;div class="grid"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="card"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;h2&gt;Configurações da Transmissão&lt;/h2&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;h2&gt;Configurações de Streaming&lt;/h2&gt;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="roomId"&gt;&lt;b&gt;ID da Sala:&lt;/b&gt;&lt;/label&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;input type="text" id="roomId" value="ios-camera" placeholder="Nome da sala"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="serverIP"&gt;&lt;b&gt;IP do Servidor:&lt;/b&gt;&lt;/label&gt;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;input type="text" id="serverIP" value="192.168.0.178" placeholder="IP do servidor WebRTC"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
@@ -266,7 +282,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;footer&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>WebRTC Camera Preview Tweak - Transmissor Otimizado para 4K/60fps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>WebRTC Camera Preview Tweak - Optimizado para Rede Local 4K</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/footer&gt;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;script&gt;</span></p>
@@ -278,6 +294,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const frameRate = document.getElementById('frameRate');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const localVideo = document.getElementById('localVideo');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const roomIdInput = document.getElementById('roomId');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const serverIPInput = document.getElementById('serverIP');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const statusDiv = document.getElementById('status');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoStats = document.getElementById('videoStats');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const connectionStats = document.getElementById('connectionStats');</span></p>
@@ -288,9 +305,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let peerConnection;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let ws;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let statsInterval;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const serverUrl = location.hostname === 'localhost' || location.hostname === '127.0.0.1'<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>? `ws://${location.host}`<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>: `ws://${location.hostname}:8080`;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Mapeamento de qualidades de vídeo</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoQualities = {</span></p>
@@ -339,7 +353,7 @@
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Configurar IDs de câmera preferenciais para melhor qualidade</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const preferredCameras = videoDevices.filter(device =&gt;<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('hd') ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('hd') ||</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('4k') ||</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>device.label.toLowerCase().includes('pro')</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>);</span></p>
@@ -367,7 +381,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Configurando vídeo: ${quality.width}x${quality.height} a ${fps}fps`);</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const constraints = {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>audio: false,</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>audio: false,<span class="Apple-converted-space">  </span>// Não precisamos de áudio para VCAM</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>video: {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>deviceId: videoSource.value ? { exact: videoSource.value } : undefined,</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>width: { ideal: quality.width },</span></p>
@@ -403,14 +417,13 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function setupPeerConnection() {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const config = {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceServers: [</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>{ urls: 'stun:stun.l.google.com:19302' },</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>{ urls: 'stun:stun1.l.google.com:19302' },</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>{ urls: 'stun:stun.l.google.com:19302' }</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>],</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Otimizações para rede local</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceTransportPolicy: 'all',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>bundlePolicy: 'max-bundle',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>rtcpMuxPolicy: 'require',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sdpSemantics: 'unified-plan',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Otimizações para redes locais</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>iceCandidatePoolSize: 0</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
@@ -439,7 +452,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('ICE State:', peerConnection.iceConnectionState);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectionStats.innerHTML = `ICE State: ${peerConnection.iceConnectionState}`;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (peerConnection.iceConnectionState === 'connected' ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (peerConnection.iceConnectionState === 'connected' ||</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>peerConnection.iceConnectionState === 'completed') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Conectado ao dispositivo iOS', true);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} else if (peerConnection.iceConnectionState === 'disconnected' ||</span></p>
@@ -496,7 +509,10 @@
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Conectar ao servidor WebSocket</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function connectWebSocket() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws = new WebSocket(serverUrl);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const serverIP = serverIPInput.value || '192.168.0.178';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const urlString = `ws://${serverIP}:8080`;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws = new WebSocket(urlString);</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onopen = () =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket conectado');</span></p>
@@ -511,12 +527,12 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket desconectado');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Desconectado do servidor', false);</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Tentar reconectar após 3 segundos</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>setTimeout(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (startButton.disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Tentar reconectar após 3 segundos apenas se a conexão foi perdida inesperadamente</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (startButton.disabled &amp;&amp; !stopButton.disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>setTimeout(() =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>connectWebSocket();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}, 3000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}, 3000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onerror = (error) =&gt; {</span></p>
@@ -682,11 +698,17 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>return;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!serverIPInput.value.trim()) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>alert("Por favor, informe o IP do servidor");</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>return;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopButton.disabled = false;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Desabilitar troca de qualidade durante streaming</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Desabilitar troca de configurações durante streaming</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = true;</span></p>
@@ -704,6 +726,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = false;</span></p>
@@ -716,6 +739,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>startButton.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>stopButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>roomIdInput.disabled = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>serverIPInput.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoSource.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>frameRate.disabled = false;</span></p>
@@ -775,11 +799,53 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Auto-detecção de IP do servidor</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function detectLocalIP() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Tentar detectar o IP do servidor atual baseado na URL</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const currentHost = window.location.hostname;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (currentHost &amp;&amp; currentHost !== 'localhost' &amp;&amp; currentHost !== '127.0.0.1') {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.value = currentHost;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Detectado IP do servidor: ${currentHost}`);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Otimizar conexão para rede local quando possível</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function optimizeForLocalNetwork() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const serverIP = serverIPInput.value;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (serverIP.startsWith('192.168.') ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIP.startsWith('10.') ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIP === 'localhost' ||<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIP === '127.0.0.1') {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('Rede local detectada, otimizando para conexão direta');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Já estamos otimizados para rede local</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return true;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>return false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Verificar conexão perdida</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function setupConnectionCheck() {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Verificar a cada 5 segundos se o WebSocket ainda está conectado</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>setInterval(() =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (ws &amp;&amp; ws.readyState !== WebSocket.OPEN &amp;&amp;<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>startButton.disabled &amp;&amp; !stopButton.disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Conexão WebSocket perdida, tentando reconectar...');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>connectWebSocket();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 5000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Inicializar quando a página carregar</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('DOMContentLoaded', initialize);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('DOMContentLoaded', () =&gt; {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>initialize();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>detectLocalIP();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>setupConnectionCheck();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Detectar quando a página é fechada para limpar recursos</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('beforeunload', stopStreaming);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/body&gt;</span></p>
+<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
 </body>
 </html>

@@ -4,8 +4,8 @@
 #import "WebRTCManager.h"
 
 typedef NS_ENUM(NSInteger, FloatingWindowState) {
-    FloatingWindowStateMinimized,  // Versão minimizada tipo AssistiveTouch
-    FloatingWindowStateExpanded    // Versão expandida com controles
+    FloatingWindowStateMinimized,  // Minimized version like AssistiveTouch
+    FloatingWindowStateExpanded    // Expanded version with controls
 };
 
 @interface FloatingWindow : UIWindow <RTCVideoViewDelegate, WebRTCManagerDelegate>
@@ -14,9 +14,7 @@ typedef NS_ENUM(NSInteger, FloatingWindowState) {
 @property (nonatomic, strong) WebRTCManager *webRTCManager;
 @property (nonatomic, assign) FloatingWindowState windowState;
 @property (nonatomic, assign) BOOL isReceivingFrames;
-@property (nonatomic, assign) float currentFps;
 @property (nonatomic, assign) CGSize lastFrameSize;
-@property (nonatomic, strong) UILabel *statusLabel;
 
 - (instancetype)init;
 - (void)show;

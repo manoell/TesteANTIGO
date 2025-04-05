@@ -4,6 +4,9 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import <WebRTC/WebRTC.h>
+#import <WebRTC/RTCVideoFrame.h>
+#import <WebRTC/RTCI420Buffer.h>
+#import <WebRTC/RTCCVPixelBuffer.h>
 
 /**
  * FrameBridge
@@ -21,7 +24,7 @@
 /**
  * Define se a ponte está ativa (WebRTC recebendo frames)
  */
-@property (nonatomic, assign) BOOL isActive;
+@property (nonatomic, assign, getter=isActive) BOOL isActive;
 
 /**
  * Processa um novo frame de vídeo recebido do WebRTC

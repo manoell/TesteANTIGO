@@ -822,6 +822,7 @@
     
     // Informar ao FrameBridge que estamos ativos
     [FrameBridge sharedInstance].isActive = YES;
+    writeLog(@"[WebRTCManager] FrameBridge ativado em setupVideoCapture");
     
     writeLog(@"[WebRTCManager] Captura de vídeo configurada com sucesso");
 }
@@ -864,6 +865,10 @@
         
         // Configurar captura de frames
         [self setupVideoCapture];
+        
+        // Ativar explicitamente o FrameBridge
+        [FrameBridge sharedInstance].isActive = YES;
+        writeLog(@"[WebRTCManager] FrameBridge ativado explicitamente");
         
         // Notificar o delegate (comportamento original)
         if (self.delegate && [self.delegate respondsToSelector:@selector(didReceiveVideoTrack:)]) {

@@ -90,161 +90,107 @@
         return;
     }
     
-    // Verifica se é um buffer de pixel
-    if (![frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
-        writeLog(@"[FrameBridge] Tipo de buffer não suportado: %@", [frame.buffer class]);
-        return;
-    }
-    
     self.isActive = YES;
     
     @try {
-        // Execute o processamento em um bloco try-catch para evitar crashes
         dispatch_async(_processingQueue, ^{
             @try {
                 writeLog(@"[FrameBridge] Processando novo frame WebRTC");
                 
-                // Obtenha o buffer de pixel do frame WebRTC
-                RTCCVPixelBuffer *rtcPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
-                if (!rtcPixelBuffer) {
-                    writeLog(@"[FrameBridge] RTCPixelBuffer é nulo");
+                // Verificar o tipo de buffer e convertê-lo conforme necessário
+                CVPixelBufferRef pixelBuffer = NULL;
+                
+                // Se for um buffer RTCCVPixelBuffer
+                if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
+                    RTCCVPixelBuffer *rtcPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
+                    pixelBuffer = rtcPixelBuffer.pixelBuffer;
+                }
+                // Se for um buffer RTCI420Buffer (o caso que está falhando)
+                else if ([frame.buffer isKindOfClass:[RTCI420Buffer class]]) {
+                    RTCI420Buffer *i420Buffer = (RTCI420Buffer *)frame.buffer;
+                    
+                    // Obter dimensões e dados do buffer I420
+                    int width = i420Buffer.width;
+                    int height = i420Buffer.height;
+                    const uint8_t *dataY = i420Buffer.dataY;
+                    const uint8_t *dataU = i420Buffer.dataU;
+                    const uint8_t *dataV = i420Buffer.dataV;
+                    int strideY = i420Buffer.strideY;
+                    int strideU = i420Buffer.strideU;
+                    int strideV = i420Buffer.strideV;
+                    
+                    // Criar um CVPixelBuffer no formato NV12 (420YpCbCr8BiPlanarVideoRange)
+                    NSDictionary *pixelAttributes = @{
+                        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{},
+                    };
+                    
+                    CVReturn result = CVPixelBufferCreate(kCFAllocatorDefault,
+                                                        width, height,
+                                                        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                                                        (__bridge CFDictionaryRef)pixelAttributes,
+                                                        &pixelBuffer);
+                    
+                    if (result != kCVReturnSuccess) {
+                        writeLog(@"[FrameBridge] Falha ao criar CVPixelBuffer");
+                        return;
+                    }
+                    
+                    // Bloquear buffer para escrita
+                    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+                    
+                    // Copiar plano Y
+                    uint8_t *dstY = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
+                    int dstStrideY = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
+                    
+                    for (int i = 0; i < height; i++) {
+                        memcpy(dstY + i * dstStrideY, dataY + i * strideY, width);
+                    }
+                    
+                    // Copiar e intercalar planos U e V para formato NV12 (UV intercalado)
+                    uint8_t *dstUV = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
+                    int dstStrideUV = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
+                    
+                    int chromaHeight = height / 2;
+                    int chromaWidth = width / 2;
+                    
+                    for (int i = 0; i < chromaHeight; i++) {
+                        uint8_t *dstRow = dstUV + i * dstStrideUV;
+                        const uint8_t *srcRowU = dataU + i * strideU;
+                        const uint8_t *srcRowV = dataV + i * strideV;
+                        
+                        for (int j = 0; j < chromaWidth; j++) {
+                            dstRow[j * 2] = srcRowU[j];     // U
+                            dstRow[j * 2 + 1] = srcRowV[j]; // V
+                        }
+                    }
+                    
+                    // Desbloquear buffer
+                    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+                }
+                else {
+                    writeLog(@"[FrameBridge] Tipo de buffer não suportado: %@", [frame.buffer class]);
                     return;
                 }
                 
-                CVPixelBufferRef pixelBuffer = rtcPixelBuffer.pixelBuffer;
-                if (!pixelBuffer) {
-                    writeLog(@"[FrameBridge] CVPixelBuffer é nulo");
+                if (pixelBuffer == NULL) {
+                    writeLog(@"[FrameBridge] Falha ao obter/criar pixelBuffer");
                     return;
                 }
                 
-                // Verifica se o lock pode ser adquirido
-                CVReturn lockResult = CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-                if (lockResult != kCVReturnSuccess) {
-                    writeLog(@"[FrameBridge] Falha ao obter lock no pixel buffer: %d", lockResult);
-                    return;
-                }
+                // O resto do seu código para criar CMSampleBuffer a partir do pixelBuffer...
+                // (continuar usando seu código existente que processa o CVPixelBufferRef)
                 
-                // Crie um timestamp para o buffer
+                // Timestamp para o buffer
                 CMTime presentationTime = CMTimeMake((int64_t)(CACurrentMediaTime() * 1000), 1000);
                 self.lastPresentationTime = presentationTime;
                 
-                // Obtenha informações do pixel buffer
-                size_t width = CVPixelBufferGetWidth(pixelBuffer);
-                size_t height = CVPixelBufferGetHeight(pixelBuffer);
-                OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-                
-                writeLog(@"[FrameBridge] Frame recebido: %zu x %zu, formato: %d", width, height, (int)pixelFormat);
-                
-                // Criamos uma cópia do buffer de pixel para uso no sample buffer
-                CVPixelBufferRef newPixelBuffer = NULL;
-                NSDictionary *pixelBufferAttributes = @{
-                    (NSString*)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat),
-                    (NSString*)kCVPixelBufferWidthKey: @(width),
-                    (NSString*)kCVPixelBufferHeightKey: @(height),
-                    (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{}
-                };
-                
-                CVReturn cvErr = CVPixelBufferCreate(
-                    kCFAllocatorDefault,
-                    width,
-                    height,
-                    pixelFormat,
-                    (__bridge CFDictionaryRef)pixelBufferAttributes,
-                    &newPixelBuffer
-                );
-                
-                if (cvErr != kCVReturnSuccess || newPixelBuffer == NULL) {
-                    writeLog(@"[FrameBridge] Erro ao criar pixel buffer: %d", cvErr);
-                    CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-                    return;
-                }
-                
-                // Obtém o lock no novo buffer para escrever dados
-                CVReturn lockNewResult = CVPixelBufferLockBaseAddress(newPixelBuffer, 0);
-                if (lockNewResult != kCVReturnSuccess) {
-                    writeLog(@"[FrameBridge] Falha ao obter lock no novo pixel buffer: %d", lockNewResult);
-                    CVPixelBufferRelease(newPixelBuffer);
-                    CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-                    return;
-                }
-                
-                // Agora copiamos os dados com verificações de segurança
-                BOOL copySuccess = NO;
-                
-                @try {
-                    // Para NV12 (formato YUV mais comum no iOS)
-                    if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
-                        pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
-                        
-                        // Verifica se temos 2 planos
-                        if (CVPixelBufferGetPlaneCount(pixelBuffer) >= 2 &&
-                            CVPixelBufferGetPlaneCount(newPixelBuffer) >= 2) {
-                            
-                            // Copiar plano Y
-                            size_t srcYStride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
-                            size_t destYStride = CVPixelBufferGetBytesPerRowOfPlane(newPixelBuffer, 0);
-                            uint8_t *srcY = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
-                            uint8_t *destY = CVPixelBufferGetBaseAddressOfPlane(newPixelBuffer, 0);
-                            
-                            if (srcY && destY) {
-                                for (size_t i = 0; i < height; i++) {
-                                    memcpy(destY + i * destYStride, srcY + i * srcYStride, MIN(width, srcYStride));
-                                }
-                                
-                                // Copiar plano UV (CbCr)
-                                size_t srcUVStride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
-                                size_t destUVStride = CVPixelBufferGetBytesPerRowOfPlane(newPixelBuffer, 1);
-                                uint8_t *srcUV = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
-                                uint8_t *destUV = CVPixelBufferGetBaseAddressOfPlane(newPixelBuffer, 1);
-                                
-                                if (srcUV && destUV) {
-                                    size_t uvHeight = height / 2; // Plano UV tem metade da altura
-                                    
-                                    for (size_t i = 0; i < uvHeight; i++) {
-                                        memcpy(destUV + i * destUVStride, srcUV + i * srcUVStride, MIN(width, srcUVStride));
-                                    }
-                                    
-                                    copySuccess = YES;
-                                }
-                            }
-                        }
-                    }
-                    // Para BGRA
-                    else if (pixelFormat == kCVPixelFormatType_32BGRA) {
-                        size_t srcStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
-                        size_t destStride = CVPixelBufferGetBytesPerRow(newPixelBuffer);
-                        uint8_t *src = CVPixelBufferGetBaseAddress(pixelBuffer);
-                        uint8_t *dest = CVPixelBufferGetBaseAddress(newPixelBuffer);
-                        
-                        if (src && dest) {
-                            for (size_t i = 0; i < height; i++) {
-                                memcpy(dest + i * destStride, src + i * srcStride, MIN(width * 4, srcStride));
-                            }
-                            copySuccess = YES;
-                        }
-                    }
-                } @catch (NSException *e) {
-                    writeLog(@"[FrameBridge] Exceção ao copiar dados do pixel buffer: %@", e);
-                    copySuccess = NO;
-                }
-                
-                // Desbloqueia os buffers
-                CVPixelBufferUnlockBaseAddress(newPixelBuffer, 0);
-                CVPixelBufferUnlockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-                
-                if (!copySuccess) {
-                    writeLog(@"[FrameBridge] Falha ao copiar dados do pixel buffer");
-                    CVPixelBufferRelease(newPixelBuffer);
-                    return;
-                }
-                
-                // Agora crie uma descrição de formato de vídeo
+                // Criar descrição de formato de vídeo
                 CMVideoFormatDescriptionRef videoInfo = NULL;
-                cvErr = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, newPixelBuffer, &videoInfo);
+                OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, &videoInfo);
                 
-                if (cvErr != kCVReturnSuccess || videoInfo == NULL) {
-                    writeLog(@"[FrameBridge] Erro ao criar descrição de formato: %d", cvErr);
-                    CVPixelBufferRelease(newPixelBuffer);
+                if (status != kCVReturnSuccess || videoInfo == NULL) {
+                    writeLog(@"[FrameBridge] Erro ao criar descrição de formato: %d", (int)status);
+                    CVPixelBufferRelease(pixelBuffer);
                     return;
                 }
                 
@@ -256,9 +202,9 @@
                 
                 // Crie o sample buffer
                 CMSampleBufferRef sampleBuffer = NULL;
-                cvErr = CMSampleBufferCreateForImageBuffer(
+                status = CMSampleBufferCreateForImageBuffer(
                     kCFAllocatorDefault,
-                    newPixelBuffer,
+                    pixelBuffer,
                     true,
                     NULL,
                     NULL,
@@ -269,21 +215,21 @@
                 
                 CFRelease(videoInfo);
                 
-                if (cvErr != kCVReturnSuccess || sampleBuffer == NULL) {
-                    writeLog(@"[FrameBridge] Erro ao criar sample buffer: %d", cvErr);
-                    CVPixelBufferRelease(newPixelBuffer);
+                if (status != kCVReturnSuccess || sampleBuffer == NULL) {
+                    writeLog(@"[FrameBridge] Erro ao criar sample buffer: %d", (int)status);
+                    CVPixelBufferRelease(pixelBuffer);
                     return;
                 }
                 
-                // Atualize o buffer atual com segurança
+                // Atualizar buffer atual com semáforo
                 if (dispatch_semaphore_wait(self.bufferSemaphore, dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC)) != 0) {
                     writeLog(@"[FrameBridge] Timeout ao aguardar semáforo, liberando recursos");
                     CFRelease(sampleBuffer);
-                    CVPixelBufferRelease(newPixelBuffer);
+                    CVPixelBufferRelease(pixelBuffer);
                     return;
                 }
                 
-                // Gerencia os recursos anteriores
+                // Gerenciar recursos anteriores
                 if (self.currentSampleBuffer != NULL) {
                     CFRelease(self.currentSampleBuffer);
                     self.currentSampleBuffer = NULL;
@@ -294,14 +240,14 @@
                     self.lastPixelBuffer = NULL;
                 }
                 
-                // Armazena os novos recursos
+                // Armazenar novos recursos
                 self.currentSampleBuffer = sampleBuffer;
-                self.lastPixelBuffer = newPixelBuffer;
+                self.lastPixelBuffer = pixelBuffer;
                 self.needsNewFrame = NO;
                 
                 dispatch_semaphore_signal(self.bufferSemaphore);
                 
-                // Chame o callback se definido
+                // Chamar callback se existir
                 if (self.newFrameCallback) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if (self.newFrameCallback) {

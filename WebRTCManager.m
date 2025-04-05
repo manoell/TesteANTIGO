@@ -14,6 +14,8 @@
 @property (nonatomic, strong) RTCPeerConnectionFactory *factory;
 @property (nonatomic, strong) RTCPeerConnection *peerConnection;
 @property (nonatomic, strong) NSTimer *statsTimer;
+@property (nonatomic, assign) BOOL hasJoinedRoom;
+@property (nonatomic, assign) BOOL byeMessageSent;
 @end
 
 @implementation WebRTCManager
@@ -29,6 +31,8 @@
         _reconnectAttempts = 0;
         _userRequestedDisconnect = NO;
         _serverIP = @"192.168.0.178"; // Default IP
+        _hasJoinedRoom = NO;
+        _byeMessageSent = NO;
         
         writeLog(@"[WebRTCManager] Initialized");
     }
@@ -54,6 +58,12 @@
         [self.delegate didChangeConnectionState:state];
         [self.delegate didUpdateConnectionStatus:[self statusMessageForState:state]];
     });
+    
+    // Reset joined status when disconnected
+    if (state == WebRTCManagerStateDisconnected) {
+        self.hasJoinedRoom = NO;
+        self.byeMessageSent = NO;
+    }
 }
 
 - (NSString *)stateToString:(WebRTCManagerState)state {
@@ -97,10 +107,15 @@
     }
     
     self.userRequestedDisconnect = NO;
+    self.hasJoinedRoom = NO;
+    self.byeMessageSent = NO;
+    
     writeLog(@"[WebRTCManager] Starting WebRTC");
     
     self.state = WebRTCManagerStateConnecting;
-    [self stopWebRTC:NO];
+    
+    // Make sure we're fully disconnected before starting
+    [self performStopWebRTC];
     
     @try {
         [self configureWebRTCWithDefaults];
@@ -119,10 +134,28 @@
 - (void)stopWebRTC:(BOOL)userInitiated {
     if (userInitiated) {
         self.userRequestedDisconnect = YES;
+        
+        // Send bye message only if we're in a room and have an active connection
+        if (self.hasJoinedRoom && !self.byeMessageSent &&
+            self.webSocketTask && self.webSocketTask.state == NSURLSessionTaskStateRunning) {
+            [self sendByeMessage];
+            
+            // Add a small delay to ensure the bye message gets sent
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self performStopWebRTC];
+            });
+        } else {
+            [self performStopWebRTC];
+        }
+    } else {
+        [self performStopWebRTC];
     }
-    
-    writeLog(@"[WebRTCManager] Stopping WebRTC (user initiated: %@)",
-            userInitiated ? @"yes" : @"no");
+}
+
+// Separate method to handle the actual stopping logic
+- (void)performStopWebRTC {
+    writeLog(@"[WebRTCManager] Performing WebRTC stop (user initiated: %@)",
+            self.userRequestedDisconnect ? @"yes" : @"no");
     
     [self stopStatsTimer];
     self.isReceivingFrames = NO;
@@ -150,7 +183,7 @@
     self.roomId = nil;
     self.clientId = nil;
     
-    if (self.state != WebRTCManagerStateReconnecting || userInitiated) {
+    if (self.state != WebRTCManagerStateReconnecting || self.userRequestedDisconnect) {
         self.state = WebRTCManagerStateDisconnected;
     }
 }
@@ -161,6 +194,16 @@
         return;
     }
     
+    if (!self.hasJoinedRoom) {
+        writeLog(@"[WebRTCManager] Cannot send 'bye', not joined to any room");
+        return;
+    }
+    
+    if (self.byeMessageSent) {
+        writeLog(@"[WebRTCManager] 'bye' message already sent, not sending again");
+        return;
+    }
+    
     writeLog(@"[WebRTCManager] Sending 'bye' message to server");
     
     NSDictionary *byeMessage = @{
@@ -168,6 +211,7 @@
         @"roomId": self.roomId ?: @"ios-camera"
     };
     
+    self.byeMessageSent = YES;
     [self sendWebSocketMessage:byeMessage];
 }
 
@@ -275,16 +319,6 @@
     
     [self receiveWebSocketMessage];
     [self.webSocketTask resume];
-    
-    // Send join message after short delay to ensure socket is connected
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (self.webSocketTask && self.webSocketTask.state == NSURLSessionTaskStateRunning) {
-            [self sendWebSocketMessage:@{
-                @"type": @"join",
-                @"roomId": self.roomId ?: @"ios-camera"
-            }];
-        }
-    });
 }
 
 - (void)sendWebSocketMessage:(NSDictionary *)message {
@@ -493,13 +527,14 @@
     
     self.reconnectAttempts = 0;
     
-    if (!self.userRequestedDisconnect) {
+    if (!self.userRequestedDisconnect && !self.hasJoinedRoom) {
         self.roomId = self.roomId ?: @"ios-camera";
         [self sendWebSocketMessage:@{
             @"type": @"join",
             @"roomId": self.roomId
         }];
         
+        self.hasJoinedRoom = YES;
         writeLog(@"[WebRTCManager] Sent JOIN message to room: %@", self.roomId);
     }
 }
@@ -511,6 +546,10 @@
     if (!self.userRequestedDisconnect) {
         self.state = WebRTCManagerStateDisconnected;
     }
+    
+    // Reset join status
+    self.hasJoinedRoom = NO;
+    self.byeMessageSent = NO;
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
@@ -520,53 +559,14 @@
         if (!self.userRequestedDisconnect) {
             self.state = WebRTCManagerStateError;
         }
+        
+        // Reset join status
+        self.hasJoinedRoom = NO;
+        self.byeMessageSent = NO;
     }
 }
 
 #pragma mark - RTCPeerConnectionDelegate
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection didGenerateIceCandidate:(RTCIceCandidate *)candidate {
-    writeLog(@"[WebRTCManager] Ice candidate generated");
-    
-    [self sendWebSocketMessage:@{
-        @"type": @"ice-candidate",
-        @"candidate": candidate.sdp,
-        @"sdpMid": candidate.sdpMid,
-        @"sdpMLineIndex": @(candidate.sdpMLineIndex),
-        @"roomId": self.roomId ?: @"ios-camera"
-    }];
-}
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates {
-    writeLog(@"[WebRTCManager] Ice candidates removed: %lu", (unsigned long)candidates.count);
-}
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceConnectionState:(RTCIceConnectionState)newState {
-    NSString *stateString = [self iceConnectionStateToString:newState];
-    writeLog(@"[WebRTCManager] Ice connection state changed: %@", stateString);
-    
-    switch (newState) {
-        case RTCIceConnectionStateConnected:
-        case RTCIceConnectionStateCompleted:
-            self.state = WebRTCManagerStateConnected;
-            break;
-            
-        case RTCIceConnectionStateFailed:
-        case RTCIceConnectionStateDisconnected:
-        case RTCIceConnectionStateClosed:
-            if (!self.userRequestedDisconnect) {
-                self.state = WebRTCManagerStateError;
-            }
-            break;
-            
-        default:
-            break;
-    }
-}
-
-- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceGatheringState:(RTCIceGatheringState)newState {
-    writeLog(@"[WebRTCManager] Ice gathering state changed: %@", [self iceGatheringStateToString:newState]);
-}
 
 - (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeSignalingState:(RTCSignalingState)newState {
     writeLog(@"[WebRTCManager] Signaling state changed: %@", [self signalingStateToString:newState]);
@@ -600,6 +600,49 @@
 
 - (void)peerConnectionShouldNegotiate:(RTCPeerConnection *)peerConnection {
     writeLog(@"[WebRTCManager] Negotiation needed");
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceConnectionState:(RTCIceConnectionState)newState {
+    NSString *stateString = [self iceConnectionStateToString:newState];
+    writeLog(@"[WebRTCManager] Ice connection state changed: %@", stateString);
+    
+    switch (newState) {
+        case RTCIceConnectionStateConnected:
+        case RTCIceConnectionStateCompleted:
+            self.state = WebRTCManagerStateConnected;
+            break;
+            
+        case RTCIceConnectionStateFailed:
+        case RTCIceConnectionStateDisconnected:
+        case RTCIceConnectionStateClosed:
+            if (!self.userRequestedDisconnect) {
+                self.state = WebRTCManagerStateError;
+            }
+            break;
+            
+        default:
+            break;
+    }
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceGatheringState:(RTCIceGatheringState)newState {
+    writeLog(@"[WebRTCManager] Ice gathering state changed: %@", [self iceGatheringStateToString:newState]);
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didGenerateIceCandidate:(RTCIceCandidate *)candidate {
+    writeLog(@"[WebRTCManager] Ice candidate generated");
+    
+    [self sendWebSocketMessage:@{
+        @"type": @"ice-candidate",
+        @"candidate": candidate.sdp,
+        @"sdpMid": candidate.sdpMid,
+        @"sdpMLineIndex": @(candidate.sdpMLineIndex),
+        @"roomId": self.roomId ?: @"ios-camera"
+    }];
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates {
+    writeLog(@"[WebRTCManager] Ice candidates removed: %lu", (unsigned long)candidates.count);
 }
 
 - (void)peerConnection:(RTCPeerConnection *)peerConnection didOpenDataChannel:(RTCDataChannel *)dataChannel {

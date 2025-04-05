@@ -15,7 +15,7 @@ static FloatingWindow *floatingWindow;
         writeLog(@"Inicializando FloatingWindow");
         
         floatingWindow = [[FloatingWindow alloc] init];
-        WebRTCManager *manager = [[WebRTCManager alloc] initWithFloatingWindow:floatingWindow];
+        WebRTCManager *manager = [[WebRTCManager alloc] initWithDelegate:floatingWindow];
         floatingWindow.webRTCManager = manager;
         
         [floatingWindow show];

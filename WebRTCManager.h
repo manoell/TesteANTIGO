@@ -16,12 +16,20 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
     WebRTCManagerStateReconnecting
 };
 
+@protocol WebRTCManagerDelegate <NSObject>
+- (void)didUpdateConnectionStatus:(NSString *)status;
+- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack;
+- (void)didChangeConnectionState:(WebRTCManagerState)state;
+@end
+
 @interface WebRTCManager : NSObject
 
-@property (nonatomic, weak) FloatingWindow *floatingWindow;
+@property (nonatomic, weak) id<WebRTCManagerDelegate> delegate;
 @property (nonatomic, strong) NSString *serverIP;
+@property (nonatomic, assign, readonly) WebRTCManagerState state;
+@property (nonatomic, assign, readonly) BOOL isReceivingFrames;
 
-- (instancetype)initWithFloatingWindow:(FloatingWindow *)window;
+- (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;
 - (void)startWebRTC;
 - (void)stopWebRTC:(BOOL)userInitiated;
 - (void)sendByeMessage;

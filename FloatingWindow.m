@@ -452,6 +452,63 @@
     });
 }
 
+#pragma mark - WebRTCManagerDelegate
+
+- (void)didUpdateConnectionStatus:(NSString *)status {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self updateConnectionStatus:status];
+    });
+}
+
+- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Adicionar o vídeo à view
+        [videoTrack addRenderer:self.videoView];
+        
+        // Parar indicador de carregamento
+        [self.loadingIndicator stopAnimating];
+        
+        // Atualizar estado
+        self.isReceivingFrames = YES;
+        
+        // Atualizar UI
+        [self updateConnectionStatus:@"Recebendo stream"];
+    });
+}
+
+- (void)didChangeConnectionState:(WebRTCManagerState)state {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Atualizar UI baseado no estado da conexão
+        switch (state) {
+            case WebRTCManagerStateConnecting:
+                [self.loadingIndicator startAnimating];
+                break;
+                
+            case WebRTCManagerStateConnected:
+                // Expandir se estiver minimizado
+                if (self.windowState == FloatingWindowStateMinimized) {
+                    [self setWindowState:FloatingWindowStateExpanded];
+                }
+                break;
+                
+            case WebRTCManagerStateError:
+            case WebRTCManagerStateDisconnected:
+                self.isReceivingFrames = NO;
+                self.dimensionsLabel.text = @"";
+                break;
+                
+            default:
+                break;
+        }
+        
+        // Atualizar ícone minimizado
+        [self updateMinimizedIconWithState];
+        
+        // Atualizar cor de fundo
+        [self updateBackgroundColorForState];
+    });
+}
+
 #pragma mark - State Management
 
 - (void)setWindowState:(FloatingWindowState)windowState {
@@ -597,14 +654,15 @@
 #pragma mark - Gesture Handlers
 
 - (void)handlePan:(UIPanGestureRecognizer *)gesture {
-    //writeLog(@"[FloatingWindow] Pan estado: %ld", (long)gesture.state);
     CGPoint translation = [gesture translationInView:self];
     
     if (gesture.state == UIGestureRecognizerStateBegan) {
         self.lastPosition = self.center;
+        self.isDragging = YES;
     } else if (gesture.state == UIGestureRecognizerStateChanged) {
         self.center = CGPointMake(self.lastPosition.x + translation.x, self.lastPosition.y + translation.y);
     } else if (gesture.state == UIGestureRecognizerStateEnded) {
+        self.isDragging = NO;
         if (self.windowState == FloatingWindowStateMinimized) {
             [self snapToEdgeIfNeeded];
         }

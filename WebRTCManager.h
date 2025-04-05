@@ -5,6 +5,7 @@
 #import <UIKit/UIKit.h>
 #import <WebRTC/WebRTC.h>
 #import <AVFoundation/AVFoundation.h>
+#import "FrameBridge.h"
 
 @class FloatingWindow;
 
@@ -28,6 +29,8 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 @property (nonatomic, strong) NSString *serverIP;
 @property (nonatomic, assign, readonly) WebRTCManagerState state;
 @property (nonatomic, assign, readonly) BOOL isReceivingFrames;
+@property (nonatomic, strong) RTCVideoTrack *currentVideoTrack;
+@property (nonatomic, strong) RTCVideoTrack *lastReceivedTrack;
 
 // Inicializa o gerenciador WebRTC com o delegate fornecido
 - (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;
@@ -44,6 +47,10 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 
 // Retorna estatísticas sobre a conexão atual
 - (NSDictionary *)getConnectionStats;
+
+// Métodos para gerenciamento de vídeo
+- (void)setupVideoCapture;
+- (void)cleanupVideoCapture;
 
 @end
 

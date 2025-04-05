@@ -1,6 +1,32 @@
 #import "WebRTCManager.h"
 #import "logger.h"
 
+// Classe para observar frames do WebRTC
+@interface RTCFrameObserver : NSObject <RTCVideoRenderer>
+@property (nonatomic, copy) void (^frameCallback)(RTCVideoFrame *);
+@property (nonatomic, assign) CGSize size;
+@end
+
+@implementation RTCFrameObserver
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _size = CGSizeZero;
+    }
+    return self;
+}
+
+- (void)renderFrame:(RTCVideoFrame *)frame {
+    if (self.frameCallback) {
+        self.frameCallback(frame);
+    }
+}
+
+- (void)setSize:(CGSize)size {
+    _size = size;
+}
+@end
+
 @interface WebRTCManager () <RTCPeerConnectionDelegate, NSURLSessionWebSocketDelegate>
 @property (nonatomic, assign, readwrite) WebRTCManagerState state;
 @property (nonatomic, assign, readwrite) BOOL isReceivingFrames;
@@ -29,6 +55,8 @@
         _serverIP = @"192.168.0.178"; // IP padrão - deveria ser detectado ou configurável
         _hasJoinedRoom = NO;
         _byeMessageSent = NO;
+        _currentVideoTrack = nil;
+        _lastReceivedTrack = nil;
         
         writeLog(@"[WebRTCManager] Inicializado");
     }
@@ -36,6 +64,7 @@
 }
 
 - (void)dealloc {
+    [self cleanupVideoCapture];
     [self stopWebRTC:YES];
 }
 
@@ -149,6 +178,8 @@
 - (void)performStopWebRTC {
     writeLog(@"[WebRTCManager] Executando parada do WebRTC (iniciado pelo usuário: %@)",
             self.userRequestedDisconnect ? @"sim" : @"não");
+    
+    [self cleanupVideoCapture];
     
     self.isReceivingFrames = NO;
     
@@ -641,9 +672,7 @@
         writeLog(@"[WebRTCManager] Faixa de vídeo recebida: %@", self.videoTrack.trackId);
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate didReceiveVideoTrack:self.videoTrack];
-            self.isReceivingFrames = YES;
-            [self.delegate didUpdateConnectionStatus:@"Conectado - Recebendo vídeo"];
+            [self didReceiveVideoTrack:self.videoTrack];
         });
     }
 }
@@ -749,6 +778,101 @@
     }
     
     return stats;
+}
+
+#pragma mark - Processamento de Vídeo
+
+- (void)setupVideoCapture {
+    writeLog(@"[WebRTCManager] Configurando captura de vídeo");
+    
+    if (self.lastReceivedTrack != nil && self.lastReceivedTrack == self.currentVideoTrack) {
+        writeLog(@"[WebRTCManager] Reutilizando videoTrack existente");
+        return;
+    }
+    
+    [self cleanupVideoCapture];
+    
+    if (self.currentVideoTrack == nil) {
+        writeLog(@"[WebRTCManager] Nenhuma track de vídeo disponível");
+        return;
+    }
+    
+    // Criar um observador de frames para processar os frames recebidos
+    RTCFrameObserver *frameObserver = [[RTCFrameObserver alloc] init];
+    
+    __weak typeof(self) weakSelf = self;
+    frameObserver.frameCallback = ^(RTCVideoFrame *frame) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!weakSelf.isReceivingFrames) {
+                weakSelf.isReceivingFrames = YES;
+                writeLog(@"[WebRTCManager] Começou a receber frames de vídeo");
+                [weakSelf.delegate didUpdateConnectionStatus:@"Recebendo vídeo"];
+            }
+            
+            // Enviar frame para o FrameBridge para processamento
+            [[FrameBridge sharedInstance] processVideoFrame:frame];
+        });
+    };
+    
+    // Adicionar o observador à track
+    [self.currentVideoTrack addRenderer:frameObserver];
+    
+    // Armazenar referência à track atual
+    self.lastReceivedTrack = self.currentVideoTrack;
+    
+    // Informar ao FrameBridge que estamos ativos
+    [FrameBridge sharedInstance].isActive = YES;
+    
+    writeLog(@"[WebRTCManager] Captura de vídeo configurada com sucesso");
+}
+
+- (void)cleanupVideoCapture {
+    writeLog(@"[WebRTCManager] Limpando captura de vídeo");
+    
+    if (self.lastReceivedTrack) {
+        // Como não podemos usar setEnabled, vamos tentar outra abordagem
+        // para remover os renderers
+        
+        // Verificar se a track ainda é válida
+        if ([self.lastReceivedTrack respondsToSelector:@selector(addRenderer:)]) {
+            // Criar um renderer dummy para substituir os existentes
+            RTCFrameObserver *dummyRenderer = [[RTCFrameObserver alloc] init];
+            dummyRenderer.frameCallback = ^(RTCVideoFrame *frame) {
+                // Não faz nada, apenas um placeholder
+            };
+            
+            // Adicionar o renderer dummy e depois liberar a referência
+            [self.lastReceivedTrack addRenderer:dummyRenderer];
+        }
+        
+        self.lastReceivedTrack = nil;
+    }
+    
+    self.isReceivingFrames = NO;
+    [FrameBridge sharedInstance].isActive = NO;
+    [[FrameBridge sharedInstance] releaseResources];
+    
+    writeLog(@"[WebRTCManager] Captura de vídeo limpa");
+}
+
+- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Salvar a referência à track de vídeo
+        self.currentVideoTrack = videoTrack;
+        
+        writeLog(@"[WebRTCManager] Vídeo track recebida: %@", videoTrack.trackId);
+        
+        // Configurar captura de frames
+        [self setupVideoCapture];
+        
+        // Notificar o delegate (comportamento original)
+        if (self.delegate && [self.delegate respondsToSelector:@selector(didReceiveVideoTrack:)]) {
+            [self.delegate didReceiveVideoTrack:videoTrack];
+        }
+        
+        // Atualizar estado
+        [self.delegate didUpdateConnectionStatus:@"Conexão estabelecida, recebendo vídeo"];
+    });
 }
 
 @end

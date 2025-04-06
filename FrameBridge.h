@@ -51,6 +51,16 @@
  */
 - (void)setNewFrameCallback:(void (^)(void))callback;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+BOOL isFrameBridgeActive(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 @end
 
 #endif /* FRAMEBRIDGE_H */

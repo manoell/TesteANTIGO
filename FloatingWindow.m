@@ -281,6 +281,10 @@
     // Start WebRTC
     @try {
         [self.webRTCManager startWebRTC];
+        
+        // Ativar explicitamente o FrameBridge quando iniciamos o preview
+        [FrameBridge sharedInstance].isActive = YES;
+        writeLog(@"[FloatingWindow] FrameBridge ativado explicitamente ao iniciar preview");
     } @catch (NSException *exception) {
         writeLog(@"[FloatingWindow] Exception when starting WebRTC: %@", exception);
         self.isPreviewActive = NO;
@@ -313,6 +317,10 @@
     
     // Mark as not receiving frames
     self.isReceivingFrames = NO;
+    
+    // Desativa explicitamente o FrameBridge quando paramos o preview
+    [FrameBridge sharedInstance].isActive = NO;
+    writeLog(@"[FloatingWindow] FrameBridge desativado explicitamente ao parar preview");
     
     // Disconnect WebRTC
     if (self.webRTCManager) {

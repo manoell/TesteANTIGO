@@ -1,59 +1,33 @@
+#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
+#import <AVFoundation/AVFoundation.h>
 #import "FloatingWindow.h"
 #import "WebRTCManager.h"
 #import "FrameBridge.h"
-#import <UIKit/UIKit.h>
 #import "logger.h"
+
+// Variáveis globais para gerenciamento de recursos
+static AVSampleBufferDisplayLayer *g_previewLayer = nil;   // Layer para visualização da câmera
+static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0; // Timestamp da última atualização por VideoDataOutput
+static BOOL g_cameraRunning = NO;                          // Flag que indica se a câmera está ativa
+static NSString *g_cameraPosition = @"B";                  // Posição da câmera: "B" (traseira) ou "F" (frontal)
+static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationPortrait; // Orientação do vídeo/foto
+static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait; // Última orientação para otimização
 
 // Instâncias globais
 static FloatingWindow *floatingWindow;
 static WebRTCManager *webRTCManager;
 static FrameBridge *frameBridge;
 
-// Variáveis para o hook de AVCaptureVideoDataOutput
-static NSMutableArray *hookedClasses;
-
 // Elementos de UI para visualização
-static AVSampleBufferDisplayLayer *g_previewLayer = nil;
 static CALayer *g_maskLayer = nil;
 
 // Variáveis para controle
-static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0;
-static BOOL g_cameraRunning = NO;
-static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationPortrait;
-static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait;
+static NSMutableArray *hookedClasses;
 
-// Declarações de hooks
-%hook SpringBoard
-
-- (void)applicationDidFinishLaunching:(id)application {
-    %orig;
-    writeLog(@"Tweak carregado em SpringBoard");
-    
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        writeLog(@"Inicializando FloatingWindow e WebRTCManager");
-        
-        // Inicializar FrameBridge (deveria ser feito antes do WebRTCManager)
-        frameBridge = [FrameBridge sharedInstance];
-        
-        // Inicializar FloatingWindow
-        floatingWindow = [[FloatingWindow alloc] init];
-        
-        // Inicializar WebRTCManager
-        webRTCManager = [[WebRTCManager alloc] initWithDelegate:floatingWindow];
-        floatingWindow.webRTCManager = webRTCManager;
-        
-        // Mostrar a janela flutuante
-        [floatingWindow show];
-        writeLog(@"Janela flutuante exibida em modo minimizado");
-    });
-}
-
-%end
-
-// Hook para AVCaptureVideoPreviewLayer para substituir o preview
+// Hook na layer de preview da câmera
 %hook AVCaptureVideoPreviewLayer
-
-- (void)addSublayer:(CALayer *)layer {
+- (void)addSublayer:(CALayer *)layer{
     writeLog(@"AVCaptureVideoPreviewLayer::addSublayer - Adicionando sublayer: %@", layer);
     %orig;
 
@@ -101,7 +75,8 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
 %new
 -(void)step:(CADisplayLink *)sender{
     // Controla a visibilidade das camadas baseado na atividade do FrameBridge
-    if ([FrameBridge sharedInstance].isActive) {
+    BOOL frameBridgeActive = isFrameBridgeActive();
+    if (frameBridgeActive) {
         // Animação suave para mostrar as camadas, se não estiverem visíveis
         if (g_maskLayer != nil && g_maskLayer.opacity < 1.0) {
             g_maskLayer.opacity = MIN(g_maskLayer.opacity + 0.1, 1.0);
@@ -188,6 +163,7 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
 }
 %end
 
+
 // Hook para gerenciar o estado da sessão da câmera
 %hook AVCaptureSession
 // Método chamado quando a câmera é iniciada
@@ -212,8 +188,8 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
     
     // Determina qual câmera está sendo usada (frontal ou traseira)
     if ([[input device] position] > 0) {
-        NSString *cameraPosition = [[input device] position] == 1 ? @"B" : @"F";
-        writeLog(@"Posição da câmera definida como: %@", cameraPosition);
+        g_cameraPosition = [[input device] position] == 1 ? @"B" : @"F";
+        writeLog(@"Posição da câmera definida como: %@", g_cameraPosition);
     }
     %orig;
 }
@@ -237,19 +213,19 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
     }
     
     // Lista para controlar quais classes já foram "hooked"
-    static NSMutableArray *hookedClasses;
+    static NSMutableArray *hooked;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        hookedClasses = [NSMutableArray new];
+        hooked = [NSMutableArray new];
     });
     
     // Obtém o nome da classe do delegate
     NSString *className = NSStringFromClass([sampleBufferDelegate class]);
     
     // Verifica se esta classe já foi "hooked"
-    if (![hookedClasses containsObject:className]) {
+    if (![hooked containsObject:className]) {
         writeLog(@"Hooking nova classe de delegate: %@", className);
-        [hookedClasses addObject:className];
+        [hooked addObject:className];
         
         // Hook para o método que recebe cada frame de vídeo
         __block void (*original_method)(id self, SEL _cmd, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) = nil;
@@ -268,10 +244,10 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
                 g_photoOrientation = [connection videoOrientation];
                 
                 // Log para debug
-                writeLog(@"captureOutput:didOutputSampleBuffer - FrameBridge ativo: %d", [FrameBridge sharedInstance].isActive);
+                writeLog(@"captureOutput:didOutputSampleBuffer - FrameBridge ativo: %d", isFrameBridgeActive());
                 
                 // Verifica se o FrameBridge está ativo (recebendo frames do WebRTC)
-                if ([FrameBridge sharedInstance].isActive) {
+                if (isFrameBridgeActive()) {
                     writeLog(@"AVCaptureOutput - Tentando substituir buffer com frame do WebRTC");
                     
                     // Obtém um frame do WebRTC para substituir o buffer
@@ -312,8 +288,25 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
     writeLog(@"Processo atual: %@", [NSProcessInfo processInfo].processName);
     writeLog(@"Bundle ID: %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleIdentifier"]);
     
-    // Inicializa recursos globais
-    hookedClasses = nil;
+    // Inicializar FloatingWindow e WebRTCManager
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        writeLog(@"Inicializando FloatingWindow e WebRTCManager");
+        
+        // Inicializar FrameBridge (deveria ser feito antes do WebRTCManager)
+        frameBridge = [FrameBridge sharedInstance];
+        
+        // Inicializar FloatingWindow
+        floatingWindow = [[FloatingWindow alloc] init];
+        
+        // Inicializar WebRTCManager
+        webRTCManager = [[WebRTCManager alloc] initWithDelegate:floatingWindow];
+        floatingWindow.webRTCManager = webRTCManager;
+        
+        // Mostrar a janela flutuante
+        [floatingWindow show];
+        writeLog(@"Janela flutuante exibida em modo minimizado");
+    });
+    
     writeLog(@"WebRTC-VCAM inicializado com sucesso");
 }
 

@@ -90,6 +90,7 @@
         return;
     }
     
+    // Define explicitamente como ativo quando recebe frames
     self.isActive = YES;
     
     @try {
@@ -256,7 +257,7 @@
                     });
                 }
                 
-                writeLog(@"[FrameBridge] Frame processado com sucesso");
+                writeLog(@"[FrameBridge] Frame processado com sucesso, isActive = %d", self.isActive);
             } @catch (NSException *e) {
                 writeLog(@"[FrameBridge] Exceção não tratada: %@", e);
             }
@@ -383,3 +384,8 @@
 }
 
 @end
+
+// Implementação da função global para verificar se FrameBridge está ativo
+BOOL isFrameBridgeActive(void) {
+    return [[FrameBridge sharedInstance] isActive];
+}

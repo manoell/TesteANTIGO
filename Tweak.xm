@@ -15,7 +15,6 @@ static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationP
 static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait; // Última orientação para otimização
 
 // Instâncias globais
-static FloatingWindow *floatingWindow;
 static WebRTCManager *webRTCManager;
 static FrameBridge *frameBridge;
 
@@ -24,6 +23,10 @@ static CALayer *g_maskLayer = nil;
 
 // Variáveis para controle
 static NSMutableArray *hookedClasses;
+
+// Variáveis para atalho de volume
+static NSTimeInterval g_volume_up_time = 0;
+static NSTimeInterval g_volume_down_time = 0;
 
 // Hook na layer de preview da câmera
 %hook AVCaptureVideoPreviewLayer
@@ -75,6 +78,7 @@ static NSMutableArray *hookedClasses;
 %new
 -(void)step:(CADisplayLink *)sender{
     // Controla a visibilidade das camadas baseado na atividade do FrameBridge
+    // Uso da função global em vez do acesso à propriedade
     BOOL frameBridgeActive = isFrameBridgeActive();
     if (frameBridgeActive) {
         // Animação suave para mostrar as camadas, se não estiverem visíveis
@@ -171,6 +175,10 @@ static NSMutableArray *hookedClasses;
     writeLog(@"AVCaptureSession::startRunning - Câmera iniciando");
     g_cameraRunning = YES;
     g_refreshPreviewByVideoDataOutputTime = [[NSDate date] timeIntervalSince1970] * 1000;
+    
+    // Verificar explicitamente o estado do FrameBridge
+    writeLog(@"AVCaptureSession::startRunning - FrameBridge.isActive = %d", isFrameBridgeActive());
+    
     writeLog(@"AVCaptureSession iniciada com preset: %@", [self sessionPreset]);
     %orig;
 }
@@ -243,11 +251,12 @@ static NSMutableArray *hookedClasses;
                 // Armazena a orientação atual do vídeo
                 g_photoOrientation = [connection videoOrientation];
                 
-                // Log para debug
-                writeLog(@"captureOutput:didOutputSampleBuffer - FrameBridge ativo: %d", isFrameBridgeActive());
+                // Verificar explicitamente o estado do FrameBridge
+                BOOL isActive = isFrameBridgeActive();
+                writeLog(@"captureOutput: verificando FrameBridge.isActive = %d", isActive);
                 
                 // Verifica se o FrameBridge está ativo (recebendo frames do WebRTC)
-                if (isFrameBridgeActive()) {
+                if (isActive) {
                     writeLog(@"AVCaptureOutput - Tentando substituir buffer com frame do WebRTC");
                     
                     // Obtém um frame do WebRTC para substituir o buffer
@@ -280,6 +289,119 @@ static NSMutableArray *hookedClasses;
 }
 %end
 
+// Hook para os controles de volume
+%hook VolumeControl
+// Método chamado quando volume é aumentado
+-(void)increaseVolume {
+    NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
+    
+    // Salva o timestamp atual
+    g_volume_up_time = nowtime;
+    
+    // Chama o método original
+    %orig;
+}
+
+// Método chamado quando volume é diminuído
+-(void)decreaseVolume {
+    NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
+    
+    // Verifica se o botão de aumentar volume foi pressionado recentemente (menos de 1 segundo)
+    if (g_volume_up_time != 0 && nowtime - g_volume_up_time < 1) {
+        writeLog(@"Sequência volume-up + volume-down detectada, abrindo menu");
+
+        // Verifica se o WebRTC está ativo
+        BOOL isActive = isFrameBridgeActive();
+        
+        // Cria alerta para mostrar status e opções
+        NSString *title = isActive ? @"WebRTC-VCAM ✅" : @"WebRTC-VCAM";
+        NSString *message = isActive ?
+            @"A substituição da câmera está ativa." :
+            @"A substituição da câmera está desativada.";
+        
+        UIAlertController *alertController = [UIAlertController
+            alertControllerWithTitle:title
+            message:message
+            preferredStyle:UIAlertControllerStyleAlert];
+        
+        // Opção para ativar/desativar substituição
+        if (isActive) {
+            UIAlertAction *disableAction = [UIAlertAction
+                actionWithTitle:@"Desativar substituição"
+                style:UIAlertActionStyleDestructive
+                handler:^(UIAlertAction *action) {
+                    // Parar WebRTC
+                    if (webRTCManager) {
+                        [webRTCManager stopWebRTC:YES];
+                    }
+                    
+                    // Desativar FrameBridge
+                    if (frameBridge) {
+                        [frameBridge releaseResources];
+                    }
+                    
+                    // Mostrar confirmação
+                    UIAlertController *confirmAlert = [UIAlertController
+                        alertControllerWithTitle:@"Desativado"
+                        message:@"A substituição da câmera foi desativada."
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [confirmAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:confirmAlert animated:YES completion:nil];
+                }];
+            [alertController addAction:disableAction];
+            
+            // Opção para mostrar preview
+            UIAlertAction *previewAction = [UIAlertAction
+                actionWithTitle:@"Mostrar Preview"
+                style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) {
+                    // Mostrar janela de preview
+                    [FloatingWindow showWithWebRTCManager:webRTCManager];
+                }];
+            [alertController addAction:previewAction];
+        } else {
+            // Opção para ativar
+            UIAlertAction *enableAction = [UIAlertAction
+                actionWithTitle:@"Ativar substituição"
+                style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) {
+                    // Iniciar WebRTC
+                    if (webRTCManager) {
+                        [webRTCManager startWebRTC];
+                    }
+                    
+                    // Mostrar confirmação
+                    UIAlertController *confirmAlert = [UIAlertController
+                        alertControllerWithTitle:@"Ativado"
+                        message:@"A substituição da câmera foi ativada."
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [confirmAlert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:confirmAlert animated:YES completion:nil];
+                }];
+            [alertController addAction:enableAction];
+        }
+        
+        // Opção para cancelar
+        UIAlertAction *cancelAction = [UIAlertAction
+            actionWithTitle:@"Fechar"
+            style:UIAlertActionStyleCancel
+            handler:nil];
+        
+        // Adiciona a ação ao alerta
+        [alertController addAction:cancelAction];
+        
+        // Apresenta o alerta
+        [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:alertController animated:YES completion:nil];
+    }
+    
+    // Salva o timestamp atual
+    g_volume_down_time = nowtime;
+    
+    // Chama o método original
+    %orig;
+}
+%end
+
 // Função chamada quando o tweak é carregado
 %ctor {
     writeLog(@"--------------------------------------------------");
@@ -288,23 +410,23 @@ static NSMutableArray *hookedClasses;
     writeLog(@"Processo atual: %@", [NSProcessInfo processInfo].processName);
     writeLog(@"Bundle ID: %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleIdentifier"]);
     
-    // Inicializar FloatingWindow e WebRTCManager
+    // Inicializar hooks específicos para versões do iOS
+    if([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){13, 0, 0}]) {
+        writeLog(@"Detectado iOS 13 ou superior, inicializando hooks para VolumeControl");
+        %init(VolumeControl = NSClassFromString(@"SBVolumeControl"));
+    }
+    
+    // Inicializar FloatingWindow e WebRTCManager com pequeno delay para o sistema terminar de inicializar
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        writeLog(@"Inicializando FloatingWindow e WebRTCManager");
+        writeLog(@"Inicializando WebRTCManager e FrameBridge");
         
-        // Inicializar FrameBridge (deveria ser feito antes do WebRTCManager)
+        // Inicializar FrameBridge (importante inicializar antes do WebRTCManager)
         frameBridge = [FrameBridge sharedInstance];
         
-        // Inicializar FloatingWindow
-        floatingWindow = [[FloatingWindow alloc] init];
-        
         // Inicializar WebRTCManager
-        webRTCManager = [[WebRTCManager alloc] initWithDelegate:floatingWindow];
-        floatingWindow.webRTCManager = webRTCManager;
+        webRTCManager = [[WebRTCManager alloc] initWithDelegate:nil]; // Sem delegate na inicialização
         
-        // Mostrar a janela flutuante
-        [floatingWindow show];
-        writeLog(@"Janela flutuante exibida em modo minimizado");
+        writeLog(@"WebRTC-VCAM componentes inicializados");
     });
     
     writeLog(@"WebRTC-VCAM inicializado com sucesso");
@@ -315,11 +437,6 @@ static NSMutableArray *hookedClasses;
     writeLog(@"WebRTC-VCAM - Finalizando tweak");
     
     // Limpa recursos globais
-    if (floatingWindow) {
-        [floatingWindow hide];
-    }
-    floatingWindow = nil;
-    
     if (webRTCManager) {
         [webRTCManager stopWebRTC:YES];
     }
@@ -331,6 +448,9 @@ static NSMutableArray *hookedClasses;
     frameBridge = nil;
     
     hookedClasses = nil;
+    
+    // Destruir a janela de preview se estiver visível
+    [FloatingWindow destroy];
     
     writeLog(@"WebRTC-VCAM finalizado com sucesso");
     writeLog(@"--------------------------------------------------");

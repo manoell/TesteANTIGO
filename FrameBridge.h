@@ -55,6 +55,10 @@
 extern "C" {
 #endif
 
+/**
+ * Função global para verificar se o FrameBridge está ativo.
+ * Esta função é usada nos hooks para verificar o estado de forma consistente.
+ */
 BOOL isFrameBridgeActive(void);
 
 #ifdef __cplusplus

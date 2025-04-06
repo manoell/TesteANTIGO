@@ -3,23 +3,15 @@
 #import <WebRTC/WebRTC.h>
 #import "WebRTCManager.h"
 
-typedef NS_ENUM(NSInteger, FloatingWindowState) {
-    FloatingWindowStateMinimized,  // Minimized version like AssistiveTouch
-    FloatingWindowStateExpanded    // Expanded version with controls
-};
+// Janela simplificada apenas para visualização do preview
+@interface FloatingWindow : UIWindow
 
-@interface FloatingWindow : UIWindow <RTCVideoViewDelegate, WebRTCManagerDelegate>
-
-@property (nonatomic, strong, readonly) RTCMTLVideoView *videoView;
+@property (nonatomic, strong) RTCMTLVideoView *videoView;
+@property (nonatomic, strong) UIButton *closeButton;
 @property (nonatomic, strong) WebRTCManager *webRTCManager;
-@property (nonatomic, assign) FloatingWindowState windowState;
-@property (nonatomic, assign) BOOL isReceivingFrames;
-@property (nonatomic, assign) CGSize lastFrameSize;
 
-- (instancetype)init;
-- (void)show;
-- (void)hide;
-- (void)togglePreview:(UIButton *)sender;
-- (void)updateConnectionStatus:(NSString *)status;
+// Métodos para criar e destruir a janela
++ (void)showWithWebRTCManager:(WebRTCManager *)manager;
++ (void)destroy;
 
 @end

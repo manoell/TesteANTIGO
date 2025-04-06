@@ -51,6 +51,16 @@
     [self releaseResources];
 }
 
+#pragma mark - Controle de Estado
+
+// Setter customizado para monitorar mudanças de estado
+- (void)setIsActive:(BOOL)active {
+    if (_isActive != active) {
+        _isActive = active;
+        writeLog(@"[FrameBridge] Estado alterado para: %d", active);
+    }
+}
+
 #pragma mark - Gerenciamento de Recursos
 
 - (void)releaseResources {
@@ -105,6 +115,7 @@
                 if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
                     RTCCVPixelBuffer *rtcPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
                     pixelBuffer = rtcPixelBuffer.pixelBuffer;
+                    writeLog(@"[FrameBridge] Usando RTCCVPixelBuffer");
                 }
                 // Se for um buffer RTCI420Buffer (o caso que está falhando)
                 else if ([frame.buffer isKindOfClass:[RTCI420Buffer class]]) {
@@ -120,6 +131,8 @@
                     int strideU = i420Buffer.strideU;
                     int strideV = i420Buffer.strideV;
                     
+                    writeLog(@"[FrameBridge] Convertendo RTCI420Buffer %dx%d", width, height);
+                    
                     // Criar um CVPixelBuffer no formato NV12 (420YpCbCr8BiPlanarVideoRange)
                     NSDictionary *pixelAttributes = @{
                         (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{},
@@ -132,7 +145,7 @@
                                                         &pixelBuffer);
                     
                     if (result != kCVReturnSuccess) {
-                        writeLog(@"[FrameBridge] Falha ao criar CVPixelBuffer");
+                        writeLog(@"[FrameBridge] Falha ao criar CVPixelBuffer: %d", (int)result);
                         return;
                     }
                     
@@ -167,6 +180,7 @@
                     
                     // Desbloquear buffer
                     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+                    writeLog(@"[FrameBridge] Conversão I420->NV12 completa");
                 }
                 else {
                     writeLog(@"[FrameBridge] Tipo de buffer não suportado: %@", [frame.buffer class]);
@@ -178,8 +192,10 @@
                     return;
                 }
                 
-                // O resto do seu código para criar CMSampleBuffer a partir do pixelBuffer...
-                // (continuar usando seu código existente que processa o CVPixelBufferRef)
+                // Debug info sobre o pixelBuffer
+                size_t width = CVPixelBufferGetWidth(pixelBuffer);
+                size_t height = CVPixelBufferGetHeight(pixelBuffer);
+                writeLog(@"[FrameBridge] Criando SampleBuffer a partir de PixelBuffer %zux%zu", width, height);
                 
                 // Timestamp para o buffer
                 CMTime presentationTime = CMTimeMake((int64_t)(CACurrentMediaTime() * 1000), 1000);
@@ -277,7 +293,8 @@
         
         // Se não estamos ativos ou não temos frame, retorne NULL
         if (!self.isActive || self.currentSampleBuffer == NULL) {
-            writeLog(@"[FrameBridge] Nenhum frame disponível");
+            writeLog(@"[FrameBridge] Nenhum frame disponível (isActive=%d, currentSampleBuffer=%p)",
+                    self.isActive, self.currentSampleBuffer);
             result = NULL;
             return;
         }
@@ -350,6 +367,7 @@
                     
                     if (status == noErr && adaptedBuffer != NULL) {
                         result = adaptedBuffer;
+                        writeLog(@"[FrameBridge] Buffer adaptado criado com sucesso");
                     } else {
                         writeLog(@"[FrameBridge] Erro ao criar buffer adaptado: %d", (int)status);
                         result = NULL;
@@ -387,5 +405,11 @@
 
 // Implementação da função global para verificar se FrameBridge está ativo
 BOOL isFrameBridgeActive(void) {
-    return [[FrameBridge sharedInstance] isActive];
+    BOOL active = [[FrameBridge sharedInstance] isActive];
+    static int callCount = 0;
+    if (++callCount % 100 == 0) {
+        writeLog(@"[FrameBridge] Verificação #%d de isFrameBridgeActive() retornou: %d",
+                callCount, active);
+    }
+    return active;
 }

@@ -785,46 +785,30 @@
 - (void)setupVideoCapture {
     writeLog(@"[WebRTCManager] Configurando captura de vídeo");
     
-    if (self.lastReceivedTrack != nil && self.lastReceivedTrack == self.currentVideoTrack) {
-        writeLog(@"[WebRTCManager] Reutilizando videoTrack existente");
-        return;
-    }
-    
-    [self cleanupVideoCapture];
-    
-    if (self.currentVideoTrack == nil) {
-        writeLog(@"[WebRTCManager] Nenhuma track de vídeo disponível");
-        return;
-    }
-    
     // Criar um observador de frames para processar os frames recebidos
     RTCFrameObserver *frameObserver = [[RTCFrameObserver alloc] init];
     
     __weak typeof(self) weakSelf = self;
     frameObserver.frameCallback = ^(RTCVideoFrame *frame) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (!weakSelf.isReceivingFrames) {
-                weakSelf.isReceivingFrames = YES;
-                writeLog(@"[WebRTCManager] Começou a receber frames de vídeo");
-                [weakSelf.delegate didUpdateConnectionStatus:@"Recebendo vídeo"];
-            }
-            
-            // Enviar frame para o FrameBridge para processamento
-            [[FrameBridge sharedInstance] processVideoFrame:frame];
-        });
+        // AQUI: Adicione log explícito
+        writeLog(@"[WebRTCManager] Frame recebido do WebRTC, enviando para FrameBridge");
+        
+        // Enviar frame para o FrameBridge para processamento
+        [[FrameBridge sharedInstance] processVideoFrame:frame];
+        
+        // Atualizar estado
+        if (!weakSelf.isReceivingFrames) {
+            weakSelf.isReceivingFrames = YES;
+            writeLog(@"[WebRTCManager] Começou a receber frames de vídeo");
+        }
     };
     
     // Adicionar o observador à track
     [self.currentVideoTrack addRenderer:frameObserver];
     
-    // Armazenar referência à track atual
-    self.lastReceivedTrack = self.currentVideoTrack;
-    
-    // Informar ao FrameBridge que estamos ativos
+    // Ativar explicitamente o FrameBridge
     [FrameBridge sharedInstance].isActive = YES;
     writeLog(@"[WebRTCManager] FrameBridge ativado em setupVideoCapture");
-    
-    writeLog(@"[WebRTCManager] Captura de vídeo configurada com sucesso");
 }
 
 - (void)cleanupVideoCapture {
@@ -860,6 +844,7 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         // Salvar a referência à track de vídeo
         self.currentVideoTrack = videoTrack;
+        self.lastReceivedTrack = videoTrack;
         
         writeLog(@"[WebRTCManager] Vídeo track recebida: %@", videoTrack.trackId);
         

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2023 The WebRTC project authors. All Rights Reserved.
+ *  Copyright 2025 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -49,7 +49,6 @@
 #import <WebRTC/RTCCameraPreviewView.h>
 #import <WebRTC/RTCDispatcher.h>
 #import <WebRTC/UIDevice+RTCDevice.h>
-#import <WebRTC/RTCAudioDeviceModule.h>
 #import <WebRTC/RTCAudioSource.h>
 #import <WebRTC/RTCAudioTrack.h>
 #import <WebRTC/RTCConfiguration.h>
@@ -70,11 +69,15 @@
 #import <WebRTC/RTCPeerConnectionFactory.h>
 #import <WebRTC/RTCPeerConnectionFactoryOptions.h>
 #import <WebRTC/RTCRtcpParameters.h>
+#import <WebRTC/RTCRtpCapabilities.h>
+#import <WebRTC/RTCRtpCodecCapability.h>
 #import <WebRTC/RTCRtpCodecParameters.h>
 #import <WebRTC/RTCRtpEncodingParameters.h>
 #import <WebRTC/RTCRtpHeaderExtension.h>
+#import <WebRTC/RTCRtpHeaderExtensionCapability.h>
 #import <WebRTC/RTCRtpParameters.h>
 #import <WebRTC/RTCRtpReceiver.h>
+#import <WebRTC/RTCRtpSource.h>
 #import <WebRTC/RTCRtpSender.h>
 #import <WebRTC/RTCRtpTransceiver.h>
 #import <WebRTC/RTCDtmfSender.h>

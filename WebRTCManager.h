@@ -28,6 +28,7 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 @property (nonatomic, strong) NSString *serverIP;
 @property (nonatomic, assign, readonly) WebRTCManagerState state;
 @property (nonatomic, assign, readonly) BOOL isReceivingFrames;
+@property (nonatomic, assign, readonly) BOOL isSubstitutionActive;
 
 // Inicializa o gerenciador WebRTC com o delegate fornecido
 - (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;
@@ -41,6 +42,13 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 
 // Envia mensagem de despedida para o servidor antes de desconectar
 - (void)sendByeMessage;
+
+// Ativa ou desativa a substituição da câmera
+- (void)setSubstitutionActive:(BOOL)active;
+
+// Obtém o frame atual para uso pelo sistema de substituição de câmera
+// Similar ao método do GetFrame no código baseSubstituicao.txt
+- (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew;
 
 // Retorna estatísticas sobre a conexão atual
 - (NSDictionary *)getConnectionStats;

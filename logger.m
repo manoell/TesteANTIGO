@@ -9,16 +9,6 @@ __attribute__((constructor))
 static void initialize() {
     if (!gLogLock) {
         gLogLock = [[NSLock alloc] init];
-        
-        // Adicionar cabeçalho ao log uma vez por execução
-        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-        [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
-        
-        NSString *header = [NSString stringWithFormat:@"\n\n=== NOVA SESSÃO: %@ ===\n",
-                           [formatter stringFromDate:[NSDate date]]];
-        
-        [header writeToFile:gLogPath atomically:YES encoding:NSUTF8StringEncoding
-                     error:nil];
     }
 }
 
@@ -56,23 +46,3 @@ void writeLog(NSString *format, ...) {
     }
 }
 
-void clearLogFile(void) {
-    [gLogLock lock];
-    @try {
-        [@"" writeToFile:gLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        NSLog(@"Arquivo de log limpo: %@", gLogPath);
-        
-        // Adicionar cabeçalho após limpar
-        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-        [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
-        
-        NSString *header = [NSString stringWithFormat:@"=== LOG REINICIADO: %@ ===\n",
-                           [formatter stringFromDate:[NSDate date]]];
-        
-        NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:gLogPath];
-        [fileHandle writeData:[header dataUsingEncoding:NSUTF8StringEncoding]];
-        [fileHandle closeFile];
-    } @finally {
-        [gLogLock unlock];
-    }
-}

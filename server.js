@@ -1,5 +1,5 @@
 /**
- * WebRTC Signaling Server - Otimizado para conexões de rede local e vídeo 4K
+ * WebRTC Signaling Server - Otimizado para conexões de rede local 5GHz e vídeo 4K
  */
 
 const express = require('express');
@@ -13,6 +13,7 @@ const os = require('os');
 const PORT = process.env.PORT || 8080;
 const MAX_CONNECTIONS_PER_ROOM = 10;  // Transmissor + receptor
 const ROOM_DEFAULT = 'ios-camera';
+const MAX_BITRATE = 30000; // 30Mbps para WiFi 5GHz
 
 // Configurar app Express
 const app = express();
@@ -246,7 +247,7 @@ function enhanceSdpForHighQuality(sdp) {
   if (!sdp.includes('m=video')) return sdp;
   
   // Verificar se o SDP já contém configurações de alta taxa de bits
-  if (sdp.includes('b=AS:20000')) {
+  if (sdp.includes(`b=AS:${MAX_BITRATE}`)) {
     return sdp; // Já otimizado, não modificar para evitar duplicatas
   }
   
@@ -278,26 +279,111 @@ function enhanceSdpForHighQuality(sdp) {
     // Detectar seção de vídeo
     if (line.startsWith('m=video')) {
       inVideoSection = true;
+      
+      // Reordenar codecs para priorizar H.264
+      if (line.includes('H264')) {
+        const parts = line.split(' ');
+        if (parts.length > 3) {
+          const newParts = [parts[0], parts[1], parts[2]];
+          const payloadTypes = [];
+          
+          // Encontrar payload types para reordenar
+          for (let j = 3; j < parts.length; j++) {
+            payloadTypes.push(parts[j]);
+          }
+          
+          // Reordenar para colocar H.264 na frente
+          const h264Payloads = [];
+          const otherPayloads = [];
+          
+          for (let p = 0; p < payloadTypes.length; p++) {
+            const payload = payloadTypes[p];
+            
+            // Verificar se é um payload de H.264
+            let isH264 = false;
+            for (let k = i + 1; k < lines.length && !lines[k].startsWith('m='); k++) {
+              if (lines[k].startsWith(`a=rtpmap:${payload} H264`)) {
+                isH264 = true;
+                break;
+              }
+            }
+            
+            if (isH264) {
+              h264Payloads.push(payload);
+            } else {
+              otherPayloads.push(payload);
+            }
+          }
+          
+          // Adicionar primeiro H.264, depois os outros
+          newParts.push(...h264Payloads);
+          newParts.push(...otherPayloads);
+          
+          // Substituir a linha
+          lines[i] = newParts.join(' ');
+        }
+      }
     } else if (line.startsWith('m=')) {
       inVideoSection = false;
     }
     
     // Para seção de vídeo, adicionar taxa de bits se não existir
     if (inVideoSection && line.startsWith('c=') && !videoSectionModified) {
+      // Adicionar a linha original primeiro
       newLines.push(line);
-      // Adicionar linha de alta taxa de bits para 4K após linha de conexão
-      newLines.push(`b=AS:20000`);
+      
+      // Adicionar linha de alta taxa de bits para 4K em WiFi 5GHz
+      newLines.push(`b=AS:${MAX_BITRATE}`);
       videoSectionModified = true;
       continue;
     }
     
-    // Modificar H.264 profile-level-id para suportar 4K, mas apenas se não já estiver definido
+    // Modificar profile-level-id de H.264 para suportar 4K e alta taxa de bits
     if (inVideoSection && line.includes('profile-level-id') && line.includes('H264')) {
-      // Substituir apenas se ainda não for perfil alto
+      // Substituir apenas se ainda não está definido para alta qualidade
       if (!line.includes('profile-level-id=640032')) {
         const modifiedLine = line.replace(/profile-level-id=[0-9a-fA-F]+/i, 'profile-level-id=640032');
-        newLines.push(modifiedLine);
+        
+        // Adicionar packetization-mode=1 se não existir
+        if (!modifiedLine.includes('packetization-mode')) {
+          newLines.push(`${modifiedLine};packetization-mode=1`);
+        } else {
+          newLines.push(modifiedLine);
+        }
         continue;
+      }
+    }
+    
+    // Configurar fmtp para alta qualidade
+    if (inVideoSection && line.startsWith('a=fmtp:') && !line.includes('apt=')) {
+      const payload = line.split(':')[1].split(' ')[0];
+      
+      // Verificar se este payload está relacionado a H.264
+      let isH264 = false;
+      for (let j = i - 1; j >= 0; j--) {
+        if (lines[j].startsWith(`a=rtpmap:${payload} H264`)) {
+          isH264 = true;
+          break;
+        }
+      }
+      
+      if (isH264) {
+        // Adicionar parâmetros para qualidade de vídeo H.264
+        if (!line.includes('level-asymmetry-allowed')) {
+          const updatedLine = line.replace(/profile-level-id=[0-9a-fA-F]+/i, 'profile-level-id=640032');
+          
+          // Adicionar parâmetros adicionais se necessário
+          let finalLine = updatedLine;
+          if (!finalLine.includes('level-asymmetry-allowed')) {
+            finalLine = `${finalLine};level-asymmetry-allowed=1`;
+          }
+          if (!finalLine.includes('packetization-mode')) {
+            finalLine = `${finalLine};packetization-mode=1`;
+          }
+          
+          newLines.push(finalLine);
+          continue;
+        }
       }
     }
     

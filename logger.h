@@ -11,7 +11,7 @@ extern "C" {
 void writeLog(NSString *format, ...);
 
 // Função para limpar o arquivo de log
-void clearLogFile(void);
+//void clearLogFile(void);
 
 #ifdef __cplusplus
 }

@@ -14,6 +14,7 @@
 @property (nonatomic, strong) RTCPeerConnection *peerConnection;
 @property (nonatomic, assign) BOOL hasJoinedRoom;
 @property (nonatomic, assign) BOOL byeMessageSent;
+@property (nonatomic, strong) NSTimer *keepAliveTimer;
 
 // Propriedades adicionadas para gerenciar frames para substituição de câmera
 @property (nonatomic, assign) CMSampleBufferRef currentFrameBuffer;
@@ -175,7 +176,7 @@
             [self sendByeMessage];
             
             // Adiciona um pequeno atraso para garantir que a mensagem "bye" seja enviada
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 [self performStopWebRTC];
             });
         } else {
@@ -192,7 +193,12 @@
             self.userRequestedDisconnect ? @"sim" : @"não");
     
     self.isReceivingFrames = NO;
-    _isSubstitutionActive = NO;  // usando a variável diretamente, não o setter
+    
+    // Parar o timer de keepalive
+    if (self.keepAliveTimer) {
+        [self.keepAliveTimer invalidate];
+        self.keepAliveTimer = nil;
+    }
     
     // Liberar o frame atual
     [self releaseCurrentFrame];
@@ -355,9 +361,10 @@
         return;
     }
     
+    // Aumentar valores de timeout substancialmente para redes locais
     NSURLSessionConfiguration *sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
-    sessionConfig.timeoutIntervalForRequest = 5.0; // Timeout reduzido para rede local
-    sessionConfig.timeoutIntervalForResource = 10.0;
+    sessionConfig.timeoutIntervalForRequest = 30.0;  // Aumentado de 5 para 30 segundos
+    sessionConfig.timeoutIntervalForResource = 60.0; // Aumentado de 10 para 60 segundos
     
     if (self.session) {
         [self.session invalidateAndCancel];
@@ -372,6 +379,37 @@
     
     [self receiveWebSocketMessage];
     [self.webSocketTask resume];
+    
+    // Configurar um timer de keepalive para manter a conexão WebSocket ativa
+    [self setupKeepAliveTimer];
+}
+
+// Adicionar este novo método para configurar um timer de keepalive
+- (void)setupKeepAliveTimer {
+    // Limpar timer existente, se houver
+    if (self.keepAliveTimer) {
+        [self.keepAliveTimer invalidate];
+        self.keepAliveTimer = nil;
+    }
+    
+    // Criar um novo timer que envia pings a cada 5 segundos
+    self.keepAliveTimer = [NSTimer scheduledTimerWithTimeInterval:5.0
+                                                          repeats:YES
+                                                            block:^(NSTimer * _Nonnull timer) {
+        [self sendKeepAliveMessage];
+    }];
+}
+
+// Adicionar este novo método para enviar mensagens de keepalive
+- (void)sendKeepAliveMessage {
+    if (self.webSocketTask && self.webSocketTask.state == NSURLSessionTaskStateRunning) {
+        NSDictionary *keepAliveMsg = @{
+            @"type": @"keepalive",
+            @"timestamp": @([[NSDate date] timeIntervalSince1970] * 1000)
+        };
+        [self sendWebSocketMessage:keepAliveMsg];
+        writeLog(@"[WebRTCManager] Enviando keepalive");
+    }
 }
 
 - (void)sendWebSocketMessage:(NSDictionary *)message {
@@ -402,10 +440,36 @@
     __weak typeof(self) weakSelf = self;
     [self.webSocketTask receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage * _Nullable message, NSError * _Nullable error) {
         if (error) {
-            if (weakSelf.webSocketTask.state != NSURLSessionTaskStateRunning && !weakSelf.userRequestedDisconnect) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    weakSelf.state = WebRTCManagerStateError;
-                });
+            writeLog(@"[WebRTCManager] Erro ao receber mensagem WebSocket: %@", error);
+            
+            // Se não foi uma desconexão solicitada pelo usuário, tentar reconectar
+            if (!weakSelf.userRequestedDisconnect) {
+                // Verificar se o WebSocket ainda está ativo
+                if (weakSelf.webSocketTask && weakSelf.webSocketTask.state == NSURLSessionTaskStateRunning) {
+                    // Continuar recebendo mensagens
+                    [weakSelf receiveWebSocketMessage];
+                } else {
+                    // Tentar reconectar apenas se o erro foi de timeout, não de usuário desconectando
+                    NSError *underlyingError = error.userInfo[NSUnderlyingErrorKey];
+                    NSInteger errorCode = underlyingError ? underlyingError.code : error.code;
+                    
+                    if (errorCode == NSURLErrorTimedOut || errorCode == NSURLErrorNetworkConnectionLost) {
+                        writeLog(@"[WebRTCManager] Erro de timeout ou conexão perdida, programando reconexão...");
+                        
+                        // Não mudar o estado para ERRO aqui, apenas tentar reconectar
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            if (weakSelf.isSubstitutionActive) {
+                                writeLog(@"[WebRTCManager] Tentando reconectar WebSocket...");
+                                [weakSelf connectWebSocket];
+                            }
+                        });
+                    } else {
+                        // Para outros erros, manter o comportamento original
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            weakSelf.state = WebRTCManagerStateError;
+                        });
+                    }
+                }
             }
             return;
         }
@@ -430,6 +494,8 @@
         // Continuar escutando mensagens se o socket ainda estiver ativo
         if (weakSelf.webSocketTask && weakSelf.webSocketTask.state == NSURLSessionTaskStateRunning) {
             [weakSelf receiveWebSocketMessage];
+        } else {
+            writeLog(@"[WebRTCManager] WebSocket não está mais ativo, não continuando receiveWebSocketMessage");
         }
     }];
 }
@@ -655,26 +721,36 @@
     NSString *reasonStr = [[NSString alloc] initWithData:reason encoding:NSUTF8StringEncoding] ?: @"Desconhecido";
     writeLog(@"[WebRTCManager] WebSocket fechou com código: %ld, motivo: %@", (long)closeCode, reasonStr);
     
-    if (!self.userRequestedDisconnect) {
+    // Se não foi o usuário que solicitou a desconexão e o burlador está ativo, tentar reconectar
+    if (!self.userRequestedDisconnect && self.isSubstitutionActive) {
+        writeLog(@"[WebRTCManager] Tentando reconectar WebSocket após fechamento...");
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self connectWebSocket];
+        });
+    } else {
+        // Se foi o usuário que solicitou a desconexão ou o burlador está inativo, desconectar normalmente
         self.state = WebRTCManagerStateDisconnected;
+        self.hasJoinedRoom = NO;
+        self.byeMessageSent = NO;
     }
-    
-    // Resetar status de participação
-    self.hasJoinedRoom = NO;
-    self.byeMessageSent = NO;
 }
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     if (error) {
         writeLog(@"[WebRTCManager] WebSocket completou com erro: %@", error);
         
-        if (!self.userRequestedDisconnect) {
+        // Se não foi o usuário que solicitou a desconexão e o burlador está ativo, tentar reconectar
+        if (!self.userRequestedDisconnect && self.isSubstitutionActive) {
+            writeLog(@"[WebRTCManager] Tentando reconectar após erro...");
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [self connectWebSocket];
+            });
+        } else {
+            // Se foi o usuário que solicitou a desconexão ou o burlador está inativo, mudar para estado de erro
             self.state = WebRTCManagerStateError;
+            self.hasJoinedRoom = NO;
+            self.byeMessageSent = NO;
         }
-        
-        // Resetar status de participação
-        self.hasJoinedRoom = NO;
-        self.byeMessageSent = NO;
     }
 }
 
@@ -781,26 +857,33 @@
 #pragma mark - Funcionalidades para substituição de câmera
 
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
+    // PRIMEIRO VERIFICA: A substituição deve estar ativa para retornar frames
+    if (!self.isSubstitutionActive) {
+        // Se não estiver ativa a substituição, retorna o buffer original (se houver)
+        // ou NULL (se for para preview)
+        return originSampleBuffer;
+    }
+    
     // Verificar se temos o webRTC conectado e recebendo frames - condição base
     if (!self.isReceivingFrames || !self.videoTrack) {
         writeLog(@"[WebRTCManager] WebRTC não está recebendo frames ou não tem videoTrack");
-        return NULL;
+        return originSampleBuffer; // Retorna o buffer original se não temos frames de WebRTC
     }
     
-    // Verificar se o buffer de origem é válido
+    // Verificar se o buffer de origem é válido (no caso de substituição real)
     if (originSampleBuffer == NULL && self.isSubstitutionActive) {
         writeLog(@"[WebRTCManager] Buffer de origem é NULL com substituição ativa");
         return NULL;
     }
     
     // Verificação se é para substituir ou apenas para preview
-    BOOL isForSubstitution = self.isSubstitutionActive;
-    BOOL isForPreview = !isForSubstitution && originSampleBuffer == NULL;
+    BOOL isForSubstitution = self.isSubstitutionActive && originSampleBuffer != NULL;
+    BOOL isForPreview = originSampleBuffer == NULL;
     
     if (!isForSubstitution && !isForPreview) {
         // Se não é nem para substituição nem para preview, não processa
         writeLog(@"[WebRTCManager] Chamada sem propósito definido (nem substituição nem preview)");
-        return NULL;
+        return originSampleBuffer;
     }
     
     writeLog(@"[WebRTCManager] getCurrentFrame - modo %@", isForSubstitution ? @"substituição" : @"preview");
@@ -1049,122 +1132,6 @@
     
     writeLog(@"[WebRTCManager] Frame processado com sucesso para %@", isForSubstitution ? @"substituição" : @"preview");
     return newSampleBuffer;
-}
-
-// Criar um buffer compatível com o formato solicitado
-- (CMSampleBufferRef)createCompatibleBufferFrom:(CMSampleBufferRef)originBuffer withFormatType:(FourCharCode)formatType {
-    // Esta função é complexa e requer manejo cuidadoso de memória
-    // Implementação básica - na prática, é necessário mais personalização
-    
-    CVImageBufferRef sourcePixelBuffer = CMSampleBufferGetImageBuffer(originBuffer);
-    if (!sourcePixelBuffer) {
-        writeLog(@"[WebRTCManager] Não foi possível obter pixel buffer do frame original");
-        return NULL;
-    }
-    
-    // Obter dimensões do buffer original
-    size_t sourceWidth = CVPixelBufferGetWidth(sourcePixelBuffer);
-    size_t sourceHeight = CVPixelBufferGetHeight(sourcePixelBuffer);
-    
-    // Atualizar as dimensões armazenadas se necessário
-    if (self.frameWidth != sourceWidth || self.frameHeight != sourceHeight) {
-        self.frameWidth = (int)sourceWidth;
-        self.frameHeight = (int)sourceHeight;
-        
-        // Limpar descrição de formato anterior se existir
-        if (self.formatDescriptionRef) {
-            CFRelease(self.formatDescriptionRef);
-            self.formatDescriptionRef = NULL;
-        }
-    }
-    
-    // Obter informações de tempo do buffer original
-    CMSampleTimingInfo timing = {
-        .duration = CMSampleBufferGetDuration(originBuffer),
-        .presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(originBuffer),
-        .decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originBuffer)
-    };
-    
-    // Criar um novo pixel buffer com o formato apropriado
-    CVPixelBufferRef newPixelBuffer = NULL;
-    CVReturn cvResult = CVPixelBufferCreate(kCFAllocatorDefault,
-                                         sourceWidth,
-                                         sourceHeight,
-                                         formatType,
-                                         NULL,
-                                         &newPixelBuffer);
-    
-    if (cvResult != kCVReturnSuccess || newPixelBuffer == NULL) {
-        writeLog(@"[WebRTCManager] Falha ao criar novo pixel buffer: %d", cvResult);
-        return NULL;
-    }
-    
-    // Bloquear o buffer para acesso à memória
-    CVPixelBufferLockBaseAddress(newPixelBuffer, 0);
-    
-    // Neste ponto, você precisa preencher o newPixelBuffer com os dados do seu stream WebRTC
-    // Isto pode envolver conversão de formatos complexa entre os formatos WebRTC e AVFoundation
-    // Por simplicidade, vamos apenas preencher com dados de teste para este exemplo
-    
-    // Preencher com padrão para teste (na implementação real, use dados do stream WebRTC)
-    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(newPixelBuffer);
-    void *baseAddress = CVPixelBufferGetBaseAddress(newPixelBuffer);
-    
-    // Preencher com um padrão simples para teste
-    if (formatType == kCVPixelFormatType_32BGRA) {
-        memset(baseAddress, 0, bytesPerRow * sourceHeight);
-    }
-    
-    // Desbloquear o buffer
-    CVPixelBufferUnlockBaseAddress(newPixelBuffer, 0);
-    
-    // Criar descrição de formato de vídeo se necessário
-    if (self.formatDescriptionRef == NULL) {
-        CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault,
-                                                  newPixelBuffer,
-                                                  &_formatDescriptionRef);
-    }
-    
-    // Criar um novo sample buffer
-    CMSampleBufferRef newSampleBuffer = NULL;
-    OSStatus status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault,
-                                                     newPixelBuffer,
-                                                     true,
-                                                     NULL,
-                                                     NULL,
-                                                     self.formatDescriptionRef ?: CMSampleBufferGetFormatDescription(originBuffer),
-                                                     &timing,
-                                                     &newSampleBuffer);
-    
-    // Liberar o pixel buffer, pois o CMSampleBuffer mantém uma referência a ele
-    CVPixelBufferRelease(newPixelBuffer);
-    
-    if (status != noErr || newSampleBuffer == NULL) {
-        writeLog(@"[WebRTCManager] Falha ao criar sample buffer: %d", (int)status);
-        return NULL;
-    }
-    
-    // Armazenar uma cópia do buffer para futuras solicitações
-    [_frameLock lock];
-    if (_currentFrameBuffer) {
-        CFRelease(_currentFrameBuffer);
-    }
-    CMSampleBufferCreateCopy(kCFAllocatorDefault, newSampleBuffer, &_currentFrameBuffer);
-    [_frameLock unlock];
-    
-    return newSampleBuffer;
-}
-
-// Método para trabalhar com frames do WebRTC
-- (void)didCaptureWebRTCFrame {
-    // Aqui você implementaria a captura/conversão de frames do WebRTC
-    // Implementação simples para manter a compatibilidade da API
-    if (!self.isSubstitutionActive) {
-        return;
-    }
-    
-    // Placeholder para implementação futura
-    writeLog(@"[WebRTCManager] WebRTC frame capturado");
 }
 
 #pragma mark - Métodos de Diagnóstico

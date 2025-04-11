@@ -556,7 +556,8 @@ wss.on('connection', (ws, req) => {
   
   logger.info(`Nova conexão: ${clientId} de ${req.socket.remoteAddress} ${isLocalConnection ? '(local)' : '(remota)'}`);
   
-  // Lidar com mensagens pong para rastrear status da conexão
+  // Configuração para processar pings e configurar heartbeat
+  ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;
   });
@@ -572,6 +573,17 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message);
       const msgType = data.type;
       const msgRoomId = data.roomId || CONFIG.DEFAULT_ROOM;
+      
+      // Processar explicitamente mensagens keepalive do cliente
+      if (msgType === 'keepalive') {
+        // Responder com keepalive-ack e resetar isAlive
+        ws.isAlive = true;
+        ws.send(JSON.stringify({
+          type: 'keepalive-ack',
+          timestamp: Date.now()
+        }));
+        return; // Não processe mais esta mensagem
+      }
       
       if (!msgType) {
         logger.warning(`Mensagem recebida sem tipo de ${ws.id}`);
@@ -594,11 +606,6 @@ wss.on('connection', (ws, req) => {
           
         case 'bye':
           handleByeMessage(ws, msgRoomId);
-          break;
-          
-        case 'keepalive':
-          // Simplesmente responder para manter a conexão viva
-          ws.send(JSON.stringify({ type: 'keepalive-ack' }));
           break;
           
         default:

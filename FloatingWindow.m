@@ -9,7 +9,7 @@
 @property (nonatomic, strong) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic, strong, readwrite) RTCMTLVideoView *videoView;
 @property (nonatomic, strong) UIButton *toggleButton;
-@property (nonatomic, strong) UIButton *substitutionButton; // Novo botão para burlador
+@property (nonatomic, strong) UIButton *substitutionButton; // Botão para burlador
 @property (nonatomic, strong) UIImageView *iconView;
 @property (nonatomic, strong) NSTimer *previewUpdateTimer; // Timer para atualizar preview
 
@@ -154,13 +154,15 @@
         [buttonContainer.heightAnchor constraintEqualToConstant:40]
     ]];
     
-    // Botão de preview
+    // Botão de preview - Inicialmente desabilitado
     self.toggleButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.toggleButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
     [self.toggleButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.toggleButton.backgroundColor = [UIColor redColor];
+    self.toggleButton.backgroundColor = [UIColor systemBlueColor];
     self.toggleButton.layer.cornerRadius = 10;
+    self.toggleButton.enabled = NO; // Inicialmente desabilitado
+    self.toggleButton.alpha = 0.5;  // Visual de desabilitado
     [self.toggleButton addTarget:self action:@selector(togglePreview:) forControlEvents:UIControlEventTouchUpInside];
     [buttonContainer addSubview:self.toggleButton];
     
@@ -271,26 +273,30 @@
 
 - (void)updatePreviewFrame {
     // Apenas atualiza se o preview estiver ativo
-    if (!self.isPreviewActive || !self.webRTCManager) {
+    if (!self.isPreviewActive || !self.webRTCManager || !self.isSubstitutionActive) {
         return;
     }
     
-    // Obter um frame do WebRTC para visualização - chamamos o getCurrentFrame com NULL para indicar que é somente para preview
+    // Obter um frame do WebRTC para visualização
     CMSampleBufferRef sampleBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:NO];
     
     if (sampleBuffer) {
-        // Como o RTCMTLVideoView não aceita diretamente CMSampleBuffer, precisamos de uma abordagem alternativa
-        // Uma opção é criar um AVSampleBufferDisplayLayer e adicioná-lo à hierarquia de views
-        
-        // Para esta implementação inicial, vamos depender do didReceiveVideoTrack para mostrar o vídeo
-        // que já está configurado para adicionar o videoTrack ao videoView
-        
-        writeLog(@"[FloatingWindow] Frame para preview obtido com sucesso");
+        // Se tiver vídeo e o preview layer estiver pronto para receber mais
+        if (self.videoView && self.isPreviewActive) {
+            writeLog(@"[FloatingWindow] Frame para preview obtido com sucesso");
+        }
         
         // Liberar o buffer após uso
         CFRelease(sampleBuffer);
     } else {
-        writeLog(@"[FloatingWindow] Não foi possível obter frame para preview");
+        // MODIFICADO: Reduzir a frequência de logs de erro
+        static NSTimeInterval lastLogTime = 0;
+        NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+        
+        if (currentTime - lastLogTime > 2.0) { // Log a cada 2 segundos em vez de cada frame
+            writeLog(@"[FloatingWindow] Não foi possível obter frame para preview");
+            lastLogTime = currentTime;
+        }
     }
 }
 
@@ -348,6 +354,11 @@
     if (self.isPreviewActive) {
         [self stopPreview];
     } else {
+        // Verificamos primeiro se o burlador está ativo
+        if (!self.isSubstitutionActive) {
+            writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
+            return;
+        }
         [self startPreview];
     }
 }
@@ -371,14 +382,22 @@
         [self.substitutionButton setTitle:@"Desativar Burlador" forState:UIControlStateNormal];
         self.substitutionButton.backgroundColor = [UIColor redColor];
         
+        // Habilitar botão de preview
+        self.toggleButton.enabled = YES;
+        self.toggleButton.alpha = 1.0;
+        
         writeLog(@"[FloatingWindow] Burlador ativado");
         
         // Se WebRTCManager está disponível, ative a substituição
         if (self.webRTCManager) {
+            // Redefinir flag de desconexão solicitada pelo usuário
+            self.webRTCManager.userRequestedDisconnect = NO;
+            
             [self.webRTCManager setSubstitutionActive:YES];
             
             // Se o WebRTC não estiver conectado, inicie a conexão
-            if (self.webRTCManager.state == WebRTCManagerStateDisconnected) {
+            if (self.webRTCManager.state == WebRTCManagerStateDisconnected ||
+                self.webRTCManager.state == WebRTCManagerStateError) {
                 [self.webRTCManager startWebRTC];
             }
         } else {
@@ -389,14 +408,32 @@
         [self.substitutionButton setTitle:@"Ativar Burlador" forState:UIControlStateNormal];
         self.substitutionButton.backgroundColor = [UIColor systemBlueColor];
         
+        // Desabilitar botão de preview e parar preview se estiver ativo
+        if (self.isPreviewActive) {
+            [self stopPreview];
+        }
+        self.toggleButton.enabled = NO;
+        self.toggleButton.alpha = 0.5;
+        
         writeLog(@"[FloatingWindow] Burlador desativado");
         
-        // Desativar substituição no WebRTCManager
+        // Desativar substituição no WebRTCManager e desconectar completamente
         if (self.webRTCManager) {
             [self.webRTCManager setSubstitutionActive:NO];
             
-            // NÃO desconecta WebRTC - apenas desativa substituição
-            // O WebRTC continua conectado para permitir ativar novamente rapidamente
+            // Desconectar WebRTC completamente quando o burlador for desativado
+            if (self.webRTCManager.state != WebRTCManagerStateDisconnected) {
+                // Marcar como solicitação do usuário
+                self.webRTCManager.userRequestedDisconnect = YES;
+                
+                // Enviar bye para desconectar de forma adequada
+                [self.webRTCManager sendByeMessage];
+                
+                // Desativar após pequeno atraso para garantir que a mensagem seja enviada
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self.webRTCManager stopWebRTC:YES];
+                });
+            }
         }
     }
     
@@ -405,9 +442,15 @@
 }
 
 - (void)startPreview {
-    // Verificar se o WebRTCManager está presente
+    // Verificar se o WebRTCManager está presente e se o burlador está ativo
     if (!self.webRTCManager) {
         writeLog(@"[FloatingWindow] WebRTCManager não inicializado");
+        return;
+    }
+    
+    // Não permitir ativar preview sem o burlador ativo
+    if (!self.isSubstitutionActive) {
+        writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
         return;
     }
     
@@ -418,27 +461,16 @@
     // Mostrar indicador de carregamento
     [self.loadingIndicator startAnimating];
     
-    // Se não estiver conectado ao WebRTC, conectar
-    if (self.webRTCManager.state == WebRTCManagerStateDisconnected) {
-        @try {
-            writeLog(@"[FloatingWindow] Iniciando WebRTC para preview");
-            [self.webRTCManager startWebRTC];
-        } @catch (NSException *exception) {
-            writeLog(@"[FloatingWindow] Exceção ao iniciar WebRTC: %@", exception);
-            self.isPreviewActive = NO;
-            [self.loadingIndicator stopAnimating];
-            
-            // Reverter UI
-            [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
-            self.toggleButton.backgroundColor = [UIColor systemBlueColor];
-            return;
-        }
-    } else {
+    // Verificar se o WebRTC já está conectado
+    if (self.webRTCManager.state == WebRTCManagerStateConnected && self.webRTCManager.videoTrack) {
         // Se já estiver conectado, adicionar o videoTrack ao videoView
-        if (self.webRTCManager.videoTrack) {
-            [self.webRTCManager.videoTrack addRenderer:self.videoView];
-            [self.loadingIndicator stopAnimating];
-        }
+        [self.webRTCManager.videoTrack addRenderer:self.videoView];
+        [self.loadingIndicator stopAnimating];
+    } else if (self.webRTCManager.state != WebRTCManagerStateConnecting) {
+        // Se não estiver conectado nem conectando, exibir uma mensagem
+        writeLog(@"[FloatingWindow] WebRTC não está conectado para mostrar preview");
+        // Não fazemos nada aqui, pois quando a conexão for estabelecida,
+        // o didReceiveVideoTrack será chamado e atualizará o videoView
     }
     
     // Iniciar timer para atualizar o preview
@@ -463,26 +495,35 @@
     // Parar o timer de atualização
     [self stopPreviewUpdateTimer];
     
-    // Se o burlador NÃO estiver ativo, podemos desconectar WebRTC para economizar recursos
-    if (!self.isSubstitutionActive && self.webRTCManager.state != WebRTCManagerStateDisconnected) {
-        @try {
-            // Enviar mensagem bye APENAS se vamos desconectar completamente
-            [self.webRTCManager sendByeMessage];
-            
-            // Desativar após pequeno atraso para garantir que a mensagem seja enviada
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [self.webRTCManager stopWebRTC:YES];
-            });
-        } @catch (NSException *exception) {
-            writeLog(@"[FloatingWindow] Exceção ao desativar WebRTC: %@", exception);
-            [self.webRTCManager stopWebRTC:YES];
-        }
+    // Remover o videoTrack do videoView para parar a exibição do preview
+    if (self.webRTCManager && self.webRTCManager.videoTrack) {
+        [self.webRTCManager.videoTrack removeRenderer:self.videoView];
     }
+    
+    // NÃO desconectar WebRTC se o burlador estiver ativo
+    // Isso garante que a substituição continue funcionando mesmo sem preview
 }
 
 - (void)updateConnectionStatus:(NSString *)status {
     // Atualizar estado visual (cor do ícone quando minimizado)
     [self updateMinimizedIconWithState];
+    
+    // Verificar se houve erro fatal de conexão
+    // Modificado para só desativar o burlador em casos de erros mais severos, não timeouts
+    if ([status containsString:@"Erro fatal"] || [status containsString:@"Erro crítico"]) {
+        // Em caso de erro fatal, desativar automaticamente o burlador
+        if (self.isSubstitutionActive) {
+            writeLog(@"[FloatingWindow] Erro fatal de conexão detectado, desativando burlador");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self setSubstitutionActive:NO];
+            });
+        }
+    }
+    // Para erros de timeout ou conexão, apenas mostrar indicador visual, mas não desativar
+    else if ([status containsString:@"Erro"]) {
+        writeLog(@"[FloatingWindow] Erro de conexão detectado, tentando recuperar...");
+        // Atualiza apenas UI, não desativa burlador
+    }
 }
 
 #pragma mark - WebRTCManagerDelegate
@@ -497,8 +538,8 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         writeLog(@"[FloatingWindow] Recebido videoTrack do WebRTC");
         
-        // Sempre adicionar o videoTrack ao videoView
-        if (self.videoView) {
+        // Adicionar o videoTrack ao videoView APENAS se o preview estiver ativo
+        if (self.videoView && self.isPreviewActive) {
             [videoTrack addRenderer:self.videoView];
             writeLog(@"[FloatingWindow] VideoTrack adicionado ao videoView");
         }
@@ -528,6 +569,22 @@
                 break;
                 
             case WebRTCManagerStateError:
+                self.isReceivingFrames = NO;
+                [self.loadingIndicator stopAnimating];
+                
+                // Se o preview estiver ativo, desativá-lo
+                if (self.isPreviewActive) {
+                    self.isPreviewActive = NO;
+                    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
+                    self.toggleButton.backgroundColor = [UIColor systemBlueColor];
+                    [self stopPreviewUpdateTimer];
+                }
+                
+                // MODIFICADO: Não desativar o burlador automaticamente em erros,
+                // pois pode ser apenas um timeout temporário. O WebRTCManager tentará reconectar.
+                // Apenas apresentar feedback visual.
+                break;
+                
             case WebRTCManagerStateDisconnected:
                 self.isReceivingFrames = NO;
                 [self.loadingIndicator stopAnimating];
@@ -540,8 +597,8 @@
                     [self stopPreviewUpdateTimer];
                 }
                 
-                // Se o burlador estiver ativo e o erro foi grave, desativá-lo
-                if (self.isSubstitutionActive && state == WebRTCManagerStateError) {
+                // Se for desconexão explícita (não temporária), desativar burlador
+                if (self.isSubstitutionActive && self.webRTCManager.userRequestedDisconnect) {
                     [self setSubstitutionActive:NO];
                 }
                 break;

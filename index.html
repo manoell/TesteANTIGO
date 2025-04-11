@@ -10,6 +10,7 @@
     p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
     p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
     span.s1 {font-kerning: none}
+    span.Apple-tab-span {white-space:pre}
   </style>
 </head>
 <body>
@@ -1063,6 +1064,12 @@
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Se WebSocket estiver ok mas ICE não, tentar recriar apenas o peer connection</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>ws.send(JSON.stringify({<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>type: 'keepalive',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>timestamp: Date.now()<span class="Apple-converted-space"> </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>}));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>console.log('Enviado keepalive para o servidor');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>console.log('WebSocket ativo, tentando recriar peer connection...');</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Fechar conexão anterior e criar nova</span></p>
@@ -1075,7 +1082,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>createAndSendOffer();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 10000);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 15000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Inicializar quando a página carregar</span></p>

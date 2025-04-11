@@ -780,55 +780,275 @@
 
 #pragma mark - Funcionalidades para substituição de câmera
 
-// Método a ser chamado pelo código de substituição de câmera (como o GetFrame)
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
-    // Se não estamos recebendo frames ou a substituição não está ativa, retornar NULL
-    if (!self.isReceivingFrames || !self.isSubstitutionActive || !self.videoTrack) {
+    // Verificar se temos o webRTC conectado e recebendo frames - condição base
+    if (!self.isReceivingFrames || !self.videoTrack) {
+        writeLog(@"[WebRTCManager] WebRTC não está recebendo frames ou não tem videoTrack");
         return NULL;
     }
     
-    if (originSampleBuffer == NULL) {
-        writeLog(@"[WebRTCManager] Buffer de origem é NULL");
+    // Verificar se o buffer de origem é válido
+    if (originSampleBuffer == NULL && self.isSubstitutionActive) {
+        writeLog(@"[WebRTCManager] Buffer de origem é NULL com substituição ativa");
         return NULL;
     }
     
-    [_frameLock lock];
-    CMSampleBufferRef result = NULL;
+    // Verificação se é para substituir ou apenas para preview
+    BOOL isForSubstitution = self.isSubstitutionActive;
+    BOOL isForPreview = !isForSubstitution && originSampleBuffer == NULL;
     
-    // Se temos um frame atual válido e não precisamos forçar renovação, usá-lo
-    if (_currentFrameBuffer != NULL && CMSampleBufferIsValid(_currentFrameBuffer) && !forceReNew) {
-        // Criar uma cópia do frame atual
-        CMSampleBufferCreateCopy(kCFAllocatorDefault, _currentFrameBuffer, &result);
-        [_frameLock unlock];
-        return result;
-    }
-    
-    [_frameLock unlock];
-    
-    // Se chegamos aqui, precisamos criar um novo frame a partir do originSampleBuffer
-    // Esta é a parte mais complexa - converter formatos de pixel entre WebRTC e AVFoundation
-    
-    // Obter os detalhes do formato do buffer original
-    CMFormatDescriptionRef localFormatDesc = CMSampleBufferGetFormatDescription(originSampleBuffer);
-    if (!localFormatDesc) {
-        writeLog(@"[WebRTCManager] Erro ao obter descrição de formato do buffer original");
+    if (!isForSubstitution && !isForPreview) {
+        // Se não é nem para substituição nem para preview, não processa
+        writeLog(@"[WebRTCManager] Chamada sem propósito definido (nem substituição nem preview)");
         return NULL;
     }
     
-    // Determinar o formato de pixel do buffer original
-    CMMediaType mediaType = CMFormatDescriptionGetMediaType(localFormatDesc);
-    FourCharCode subMediaType = CMFormatDescriptionGetMediaSubType(localFormatDesc);
+    writeLog(@"[WebRTCManager] getCurrentFrame - modo %@", isForSubstitution ? @"substituição" : @"preview");
+
+    // Informações do buffer original
+    CMFormatDescriptionRef formatDescription = nil;
+    CMMediaType mediaType = -1;
+    FourCharCode subMediaType = -1;
     
-    // Se não for vídeo, retornar NULL
-    if (mediaType != kCMMediaType_Video) {
-        writeLog(@"[WebRTCManager] Buffer original não é vídeo");
+    // Se temos um buffer de entrada, extraímos suas informações
+    if (originSampleBuffer != nil) {
+        formatDescription = CMSampleBufferGetFormatDescription(originSampleBuffer);
+        if (formatDescription) {
+            mediaType = CMFormatDescriptionGetMediaType(formatDescription);
+            subMediaType = CMFormatDescriptionGetMediaSubType(formatDescription);
+            
+            writeLog(@"[WebRTCManager] Buffer original - MediaType: %d, SubMediaType: %d", (int)mediaType, (int)subMediaType);
+            
+            // Se não for vídeo, retornamos o buffer original sem alterações
+            if (mediaType != kCMMediaType_Video) {
+                writeLog(@"[WebRTCManager] Não é vídeo, retornando buffer original sem alterações");
+                return originSampleBuffer;
+            }
+        }
+    }
+    
+    // Se já temos um buffer válido e não precisamos forçar renovação, retornamos o mesmo
+    [self.frameLock lock];
+    if (self.currentFrameBuffer != NULL && CMSampleBufferIsValid(self.currentFrameBuffer) && !forceReNew) {
+        writeLog(@"[WebRTCManager] Reutilizando buffer existente");
+        // Criar uma cópia do buffer atual
+        CMSampleBufferRef copyBuffer = NULL;
+        CMSampleBufferCreateCopy(kCFAllocatorDefault, self.currentFrameBuffer, &copyBuffer);
+        [self.frameLock unlock];
+        return copyBuffer;
+    }
+    [self.frameLock unlock];
+    
+    // Se chegamos aqui, precisamos criar um novo buffer baseado no frame WebRTC atual
+    // Para preview, usamos dimensões padrão; para substituição, usamos as dimensões do buffer original
+    
+    // Dimensões e formato
+    size_t sourceWidth = 1280;  // Valor padrão para preview
+    size_t sourceHeight = 720;  // Valor padrão para preview
+    OSType pixelFormat = kCVPixelFormatType_32BGRA;  // Formato padrão para preview
+    
+    // Timing info padrão
+    CMSampleTimingInfo timing = {
+        .duration = kCMTimeInvalid,
+        .presentationTimeStamp = CMTimeMake(0, 1),
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    
+    // Se estamos no modo substituição, obter informações do buffer original
+    if (isForSubstitution && originSampleBuffer != NULL) {
+        CVImageBufferRef sourcePixelBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
+        if (sourcePixelBuffer) {
+            sourceWidth = CVPixelBufferGetWidth(sourcePixelBuffer);
+            sourceHeight = CVPixelBufferGetHeight(sourcePixelBuffer);
+            pixelFormat = CVPixelBufferGetPixelFormatType(sourcePixelBuffer);
+            
+            // Obter timing info do buffer original
+            timing.duration = CMSampleBufferGetDuration(originSampleBuffer);
+            timing.presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(originSampleBuffer);
+            timing.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originSampleBuffer);
+            
+            writeLog(@"[WebRTCManager] Usando dimensões do buffer original: %dx%d formato: %d",
+                    (int)sourceWidth, (int)sourceHeight, (int)pixelFormat);
+        }
+    }
+    
+    // Atualizar as dimensões armazenadas se necessário
+    if (self.frameWidth != sourceWidth || self.frameHeight != sourceHeight) {
+        self.frameWidth = (int)sourceWidth;
+        self.frameHeight = (int)sourceHeight;
+        
+        // Limpar descrição de formato anterior se existir
+        if (self.formatDescriptionRef) {
+            CFRelease(self.formatDescriptionRef);
+            self.formatDescriptionRef = NULL;
+        }
+        
+        writeLog(@"[WebRTCManager] Atualizadas dimensões para %dx%d", (int)sourceWidth, (int)sourceHeight);
+    }
+    
+    // Criar um novo pixel buffer
+    CVPixelBufferRef newPixelBuffer = NULL;
+    NSDictionary *pixelBufferAttributes = @{
+        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat),
+        (NSString *)kCVPixelBufferWidthKey: @(sourceWidth),
+        (NSString *)kCVPixelBufferHeightKey: @(sourceHeight),
+        (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
+    };
+    
+    CVReturn cvReturn = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        sourceWidth,
+        sourceHeight,
+        pixelFormat,
+        (__bridge CFDictionaryRef)pixelBufferAttributes,
+        &newPixelBuffer
+    );
+    
+    if (cvReturn != kCVReturnSuccess || newPixelBuffer == NULL) {
+        writeLog(@"[WebRTCManager] Falha ao criar novo pixel buffer: %d", cvReturn);
         return NULL;
     }
     
-    writeLog(@"[WebRTCManager] Formato do buffer original - MediaType: %d, SubMediaType: %d", (int)mediaType, (int)subMediaType);
+    // Bloquear o buffer para acesso de memória
+    CVPixelBufferLockBaseAddress(newPixelBuffer, 0);
     
-    // Criar e retornar um frame compatível
-    return [self createCompatibleBufferFrom:originSampleBuffer withFormatType:subMediaType];
+    // Aqui processamos o frame do WebRTC para o newPixelBuffer
+    BOOL frameProcessed = NO;
+    
+    @try {
+        // Aqui é onde precisamos pegar o último frame do WebRTC e processá-lo
+        // Em uma implementação real, extrairíamos o frame do RTCVideoTrack
+        
+        // Para demonstração, vamos criar um padrão visual simples
+        void *baseAddress = CVPixelBufferGetBaseAddress(newPixelBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(newPixelBuffer);
+        
+        if (pixelFormat == kCVPixelFormatType_32BGRA ||
+            pixelFormat == kCVPixelFormatType_32ARGB) {
+            // Preencher com padrão para formatos BGRA/ARGB
+            uint8_t *dst = (uint8_t *)baseAddress;
+            
+            // Criar padrão visual que muda ao longo do tempo
+            static int offsetX = 0;
+            offsetX = (offsetX + 2) % (int)sourceWidth;
+            
+            for (int y = 0; y < sourceHeight; y++) {
+                for (int x = 0; x < sourceWidth; x++) {
+                    int offset = y * bytesPerRow + x * 4;
+                    
+                    // Gradiente com movimento para simular vídeo
+                    int xPos = (x + offsetX) % (int)sourceWidth;
+                    dst[offset + 0] = (xPos * 255) / sourceWidth;  // B
+                    dst[offset + 1] = (y * 255) / sourceHeight;    // G
+                    dst[offset + 2] = 100;                         // R
+                    dst[offset + 3] = 255;                         // A
+                }
+            }
+            frameProcessed = YES;
+        }
+        else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
+                 pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
+            // Processamento para formatos YUV
+            uint8_t *yPlane = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(newPixelBuffer, 0);
+            size_t yBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(newPixelBuffer, 0);
+            
+            uint8_t *cbcrPlane = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(newPixelBuffer, 1);
+            size_t cbcrBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(newPixelBuffer, 1);
+            
+            // Criar padrão visual que muda ao longo do tempo
+            static int offsetY = 0;
+            offsetY = (offsetY + 1) % (int)sourceHeight;
+            
+            // Preencher plano Y (luminância)
+            for (int y = 0; y < sourceHeight; y++) {
+                int yPos = (y + offsetY) % (int)sourceHeight;
+                for (int x = 0; x < sourceWidth; x++) {
+                    int value = ((x * 255) / sourceWidth + (yPos * 255) / sourceHeight) / 2;
+                    yPlane[y * yBytesPerRow + x] = value;
+                }
+            }
+            
+            // Preencher plano CbCr (crominância)
+            for (int y = 0; y < sourceHeight / 2; y++) {
+                for (int x = 0; x < sourceWidth / 2; x++) {
+                    cbcrPlane[y * cbcrBytesPerRow + x * 2] = 128;     // Cb
+                    cbcrPlane[y * cbcrBytesPerRow + x * 2 + 1] = 128; // Cr
+                }
+            }
+            
+            frameProcessed = YES;
+        }
+    } @catch (NSException *exception) {
+        writeLog(@"[WebRTCManager] Exceção ao processar frame: %@", exception);
+    }
+    
+    // Desbloquear o buffer
+    CVPixelBufferUnlockBaseAddress(newPixelBuffer, 0);
+    
+    if (!frameProcessed) {
+        writeLog(@"[WebRTCManager] Falha ao processar frame WebRTC, liberando buffer");
+        CVPixelBufferRelease(newPixelBuffer);
+        return NULL;
+    }
+    
+    // Criar ou recuperar formato de vídeo
+    CMVideoFormatDescriptionRef videoFormat = NULL;
+    if (self.formatDescriptionRef) {
+        videoFormat = self.formatDescriptionRef;
+    } else {
+        OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            kCFAllocatorDefault,
+            newPixelBuffer,
+            &videoFormat
+        );
+        
+        if (formatStatus != noErr) {
+            writeLog(@"[WebRTCManager] Falha ao criar formato de vídeo: %d", (int)formatStatus);
+            CVPixelBufferRelease(newPixelBuffer);
+            return NULL;
+        }
+        
+        self.formatDescriptionRef = videoFormat;
+    }
+    
+    // Criar sample buffer final
+    CMSampleBufferRef newSampleBuffer = NULL;
+    OSStatus status = CMSampleBufferCreateForImageBuffer(
+        kCFAllocatorDefault,
+        newPixelBuffer,
+        true,
+        NULL,
+        NULL,
+        videoFormat,
+        &timing,
+        &newSampleBuffer
+    );
+    
+    // Liberar pixel buffer
+    CVPixelBufferRelease(newPixelBuffer);
+    
+    if (status != noErr || newSampleBuffer == NULL) {
+        writeLog(@"[WebRTCManager] Falha ao criar sample buffer: %d", (int)status);
+        return NULL;
+    }
+    
+    // Armazenar cópia para uso futuro
+    [self.frameLock lock];
+    
+    if (self.currentFrameBuffer) {
+        CFRelease(self.currentFrameBuffer);
+        self.currentFrameBuffer = NULL;
+    }
+    
+    // Criar cópia para armazenar
+    CMSampleBufferRef tempBuffer = NULL;
+    CMSampleBufferCreateCopy(kCFAllocatorDefault, newSampleBuffer, &tempBuffer);
+    self.currentFrameBuffer = tempBuffer;
+    
+    [self.frameLock unlock];
+    
+    writeLog(@"[WebRTCManager] Frame processado com sucesso para %@", isForSubstitution ? @"substituição" : @"preview");
+    return newSampleBuffer;
 }
 
 // Criar um buffer compatível com o formato solicitado

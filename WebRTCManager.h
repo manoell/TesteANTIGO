@@ -29,6 +29,7 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 @property (nonatomic, assign, readonly) WebRTCManagerState state;
 @property (nonatomic, assign, readonly) BOOL isReceivingFrames;
 @property (nonatomic, assign, readonly) BOOL isSubstitutionActive;
+@property (nonatomic, strong, readonly) RTCVideoTrack *videoTrack;
 
 // Inicializa o gerenciador WebRTC com o delegate fornecido
 - (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;

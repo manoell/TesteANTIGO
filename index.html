@@ -307,11 +307,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="serverIP"&gt;&lt;b&gt;IP do Servidor:&lt;/b&gt;&lt;/label&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;input type="text" id="serverIP" value="" placeholder="IP do servidor WebRTC"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div class="form-group"&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;label for="videoSource"&gt;&lt;b&gt;Fonte de Vídeo:&lt;/b&gt;&lt;/label&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;select id="videoSource"&gt;&lt;/select&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
@@ -385,7 +380,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const frameRate = document.getElementById('frameRate');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const localVideo = document.getElementById('localVideo');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const roomIdInput = document.getElementById('roomId');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const serverIPInput = document.getElementById('serverIP');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const statusDiv = document.getElementById('status');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const videoStats = document.getElementById('videoStats');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const connectionStats = document.getElementById('connectionStats');</span></p>
@@ -479,9 +473,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (preferredCameras.length &gt; 0) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoSource.value = preferredCameras[0].deviceId;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Auto-detecção de IP do servidor</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>detectLocalIP();</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao inicializar:', error);</span></p>
@@ -709,10 +700,9 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Conectar ao servidor WebSocket</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function connectWebSocket() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const serverIP = serverIPInput.value || window.location.hostname;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const port = window.location.port || '8080';</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const urlString = `${protocol}//${serverIP}:${port}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const urlString = `${protocol}//localhost:${port}`;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>console.log(`Conectando WebSocket a ${urlString}`);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>updateStatus('Conectando ao servidor...', 'connecting');</span></p>
@@ -952,7 +942,6 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Desabilitar troca de configurações durante streaming</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = true;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = true;</span></p>
@@ -970,7 +959,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>roomIdInput.disabled = false;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoSource.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = false;</span></p>
@@ -983,7 +971,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>startButton.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>stopButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>roomIdInput.disabled = false;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>serverIPInput.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoSource.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>frameRate.disabled = false;</span></p>
@@ -1046,31 +1033,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>qualityIndicators.forEach(ind =&gt; ind.classList.remove('active'));</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>updateStatus('Desconectado', 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Auto-detecção de IP do servidor</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function detectLocalIP() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Tentar detectar o IP do servidor atual baseado na URL</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const currentHost = window.location.hostname;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (currentHost &amp;&amp; currentHost !== 'localhost' &amp;&amp; currentHost !== '127.0.0.1') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>serverIPInput.value = currentHost;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Detectado IP do servidor: ${currentHost}`);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Se estamos executando localmente, tentar encontrar um IP na rede local</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>serverIPInput.value = "192.168.0.178"; // Valor padrão, sugerido pelo seu arquivo original</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Opcionalmente, podemos tentar detectar o IP do navegador (que pode ou não ser útil)</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>fetch('https://api.ipify.org?format=json')</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>.then(response =&gt; response.json())</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>.then(data =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log(`Detectado IP público: ${data.ip}`);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Não usar este IP automaticamente, apenas logar</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>})</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>.catch(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Não foi possível detectar IP através de API externa');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Adicionar event listeners</span></p>

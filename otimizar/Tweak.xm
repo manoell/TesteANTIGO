@@ -3,25 +3,132 @@
 #import <AVFoundation/AVFoundation.h>
 #import "logger.h"
 
+// -------------- CONFIGURAÇÃO GLOBAL --------------
+// Flag que controla a ativação/desativação do tweak
+static BOOL g_tweakEnabled = YES;                          // Começa ativado por padrão
+
 // Variáveis globais para gerenciamento de recursos
-static NSFileManager *g_fileManager = nil;                 // Objeto para gerenciamento de arquivos
-static BOOL g_canReleaseBuffer = YES;                      // Flag que indica se o buffer pode ser liberado
-static BOOL g_bufferReload = YES;                          // Flag que indica se o vídeo precisa ser recarregado
 static AVSampleBufferDisplayLayer *g_previewLayer = nil;   // Layer para visualização da câmera
-static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0; // Timestamp da última atualização por VideoDataOutput
-static BOOL g_cameraRunning = NO;                          // Flag que indica se a câmera está ativa
+static CALayer *g_maskLayer = nil;                         // Camada de máscara
+static NSFileManager *g_fileManager = nil;                 // Objeto para gerenciamento de arquivos
+static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";  // Caminho do arquivo de vídeo
 static NSString *g_cameraPosition = @"B";                  // Posição da câmera: "B" (traseira) ou "F" (frontal)
-static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationPortrait; // Orientação do vídeo/foto
-static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait; // Última orientação para otimização
+static BOOL g_cameraRunning = NO;                          // Status da sessão de câmera
+static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0; // Timestamp da última atualização
 
-// Caminho do arquivo de vídeo padrão
-static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
+// Variáveis para otimização de recursos de vídeo
+static BOOL g_bufferReload = YES;                          // Controle de recarregamento de vídeo
 
-// Classe para obtenção e manipulação de frames de vídeo
-@interface GetFrame : NSObject
+// Variáveis para controle da interface
+static NSTimeInterval g_volume_up_time = 0;
+static NSTimeInterval g_volume_down_time = 0;
+
+// Forward declaration para GetFrame
+@protocol GetFrameProtocol <NSObject>
 + (instancetype)sharedInstance;
-- (CMSampleBufferRef _Nullable)getCurrentFrame:(CMSampleBufferRef _Nullable)originSampleBuffer forceReNew:(BOOL)forceReNew;
-+ (UIWindow*)getKeyWindow;
+- (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer;
+- (void)releaseResources;
+@end
+
+// -------------- FUNÇÕES UTILITÁRIAS --------------
+
+// Função para mostrar o alerta de status/toggle
+static void showMenuAlert(UIViewController *viewController) {
+    // Estado do tweak
+    NSString *title = g_tweakEnabled ? @"iOS-VCAM ✅" : @"iOS-VCAM";
+    NSString *message = g_tweakEnabled ? @"A substituição da câmera está ativa." : @"A substituição da câmera está desativada.";
+    
+    UIAlertController *alertController = [UIAlertController
+        alertControllerWithTitle:title
+        message:message
+        preferredStyle:UIAlertControllerStyleAlert];
+    
+    // Botão para ativar/desativar
+    NSString *toggleTitle = g_tweakEnabled ? @"Desativar" : @"Ativar";
+    UIAlertAction *toggleAction = [UIAlertAction
+        actionWithTitle:toggleTitle
+        style:g_tweakEnabled ? UIAlertActionStyleDestructive : UIAlertActionStyleDefault
+        handler:^(UIAlertAction *action) {
+            // Inverte o estado
+            g_tweakEnabled = !g_tweakEnabled;
+            writeLog(@"Status do tweak alterado para: %@", g_tweakEnabled ? @"Ativado" : @"Desativado");
+            
+            // Atualiza imediatamente a visibilidade das camadas
+            if (!g_tweakEnabled) {
+                // 100% invisível quando desativado
+                if (g_maskLayer) g_maskLayer.opacity = 0.0;
+                if (g_previewLayer) g_previewLayer.opacity = 0.0;
+                
+                // Força reset ao desativar
+                g_bufferReload = YES;
+                Class getFrameClass = NSClassFromString(@"GetFrame");
+                if (getFrameClass) {
+                    id instance = [getFrameClass performSelector:@selector(sharedInstance)];
+                    if ([instance respondsToSelector:@selector(releaseResources)]) {
+                        [instance performSelector:@selector(releaseResources)];
+                    }
+                }
+            } else {
+                // 100% visível quando ativado
+                if (g_maskLayer) g_maskLayer.opacity = 1.0;
+                if (g_previewLayer) g_previewLayer.opacity = 1.0;
+                
+                // Força recarregamento do vídeo ao ativar
+                g_bufferReload = YES;
+            }
+            
+            // Notifica o usuário sobre a mudança de estado
+            UIAlertController *confirmationAlert = [UIAlertController
+                alertControllerWithTitle:@"iOS-VCAM"
+                message:[NSString stringWithFormat:@"A substituição da câmera foi %@.",
+                          g_tweakEnabled ? @"ATIVADA" : @"DESATIVADA"]
+                preferredStyle:UIAlertControllerStyleAlert];
+                
+            [confirmationAlert addAction:[UIAlertAction
+                actionWithTitle:@"OK"
+                style:UIAlertActionStyleDefault
+                handler:nil]];
+                
+            [viewController presentViewController:confirmationAlert animated:YES completion:nil];
+        }];
+    
+    // Botão para fechar
+    UIAlertAction *closeAction = [UIAlertAction
+        actionWithTitle:@"Fechar"
+        style:UIAlertActionStyleCancel
+        handler:nil];
+    
+    // Adiciona as ações ao alerta
+    [alertController addAction:toggleAction];
+    [alertController addAction:closeAction];
+    
+    // Apresenta o alerta
+    [viewController presentViewController:alertController animated:YES completion:nil];
+}
+
+// Função para obter a janela principal
+static UIWindow* getKeyWindow() {
+    UIWindow *keyWindow = nil;
+    NSArray *windows = UIApplication.sharedApplication.windows;
+    
+    for (UIWindow *window in windows) {
+        if (window.isKeyWindow) {
+            keyWindow = window;
+            break;
+        }
+    }
+    
+    // Fallback para iOS 13+
+    if (!keyWindow && windows.count > 0) {
+        keyWindow = windows[0];
+    }
+    
+    return keyWindow;
+}
+
+// -------------- CLASSE PARA GERENCIAMENTO DE FRAMES --------------
+
+@interface GetFrame : NSObject <GetFrameProtocol>
 @end
 
 @implementation GetFrame {
@@ -32,6 +139,7 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
     CMSampleBufferRef _sampleBuffer;
     dispatch_queue_t _processingQueue;
     AVAsset *_videoAsset;
+    BOOL _isSetup;
 }
 
 // Implementação Singleton
@@ -54,6 +162,7 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
         _videoTrackout_420YpCbCr8BiPlanarFullRange = nil;
         _sampleBuffer = nil;
         _videoAsset = nil;
+        _isSetup = NO;
     }
     return self;
 }
@@ -63,102 +172,118 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
 }
 
 - (void)releaseResources {
-    if (_sampleBuffer != nil) {
-        CFRelease(_sampleBuffer);
-        _sampleBuffer = nil;
+    @synchronized (self) {
+        writeLog(@"GetFrame::releaseResources - Liberando recursos do vídeo");
+        
+        if (_sampleBuffer != nil) {
+            CFRelease(_sampleBuffer);
+            _sampleBuffer = nil;
+        }
+        
+        _reader = nil;
+        _videoTrackout_32BGRA = nil;
+        _videoTrackout_420YpCbCr8BiPlanarVideoRange = nil;
+        _videoTrackout_420YpCbCr8BiPlanarFullRange = nil;
+        _videoAsset = nil;
+        _isSetup = NO;
     }
-    
-    _reader = nil;
-    _videoTrackout_32BGRA = nil;
-    _videoTrackout_420YpCbCr8BiPlanarVideoRange = nil;
-    _videoTrackout_420YpCbCr8BiPlanarFullRange = nil;
-    _videoAsset = nil;
 }
 
 // Método para configurar o leitor de vídeo
 - (BOOL)setupVideoReader {
     @try {
-        // Verificamos se existe um arquivo de vídeo para substituição
-        if (![g_fileManager fileExistsAtPath:g_videoFile]) {
-            writeLog(@"Arquivo de vídeo para substituição não encontrado");
-            return NO;
+        @synchronized (self) {
+            // Verificação crítica - não configura se o tweak estiver desativado
+            if (!g_tweakEnabled) {
+                return NO;
+            }
+            
+            // Verificamos se já está configurado
+            if (_isSetup) {
+                return YES;
+            }
+            
+            // Verificamos se existe um arquivo de vídeo para substituição
+            if (![g_fileManager fileExistsAtPath:g_videoFile]) {
+                return NO;
+            }
+            
+            // Criamos um AVAsset a partir do arquivo de vídeo
+            NSURL *videoURL = [NSURL fileURLWithPath:g_videoFile];
+            _videoAsset = [AVAsset assetWithURL:videoURL];
+            
+            if (!_videoAsset) {
+                return NO;
+            }
+            
+            NSError *error = nil;
+            _reader = [AVAssetReader assetReaderWithAsset:_videoAsset error:&error];
+            if (error) {
+                return NO;
+            }
+            
+            AVAssetTrack *videoTrack = [[_videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+            if (!videoTrack) {
+                return NO;
+            }
+            
+            // Configuramos outputs para diferentes formatos de pixel
+            NSDictionary *outputSettings32BGRA = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)};
+            _videoTrackout_32BGRA = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings32BGRA];
+            
+            NSDictionary *outputSettingsVideoRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)};
+            _videoTrackout_420YpCbCr8BiPlanarVideoRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsVideoRange];
+            
+            NSDictionary *outputSettingsFullRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)};
+            _videoTrackout_420YpCbCr8BiPlanarFullRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsFullRange];
+            
+            [_reader addOutput:_videoTrackout_32BGRA];
+            [_reader addOutput:_videoTrackout_420YpCbCr8BiPlanarVideoRange];
+            [_reader addOutput:_videoTrackout_420YpCbCr8BiPlanarFullRange];
+            
+            if (![_reader startReading]) {
+                return NO;
+            }
+            
+            _isSetup = YES;
+            return YES;
         }
-        
-        // Criamos um AVAsset a partir do arquivo de vídeo
-        NSURL *videoURL = [NSURL fileURLWithPath:g_videoFile];
-        _videoAsset = [AVAsset assetWithURL:videoURL];
-        writeLog(@"Carregando vídeo do caminho: %@", g_videoFile);
-        
-        if (!_videoAsset) {
-            writeLog(@"Falha ao criar asset para o vídeo");
-            return NO;
-        }
-        
-        NSError *error = nil;
-        _reader = [AVAssetReader assetReaderWithAsset:_videoAsset error:&error];
-        if (error) {
-            writeLog(@"Erro ao criar asset reader: %@", error);
-            return NO;
-        }
-        
-        AVAssetTrack *videoTrack = [[_videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];
-        if (!videoTrack) {
-            writeLog(@"Não foi possível encontrar uma trilha de vídeo");
-            return NO;
-        }
-        
-        writeLog(@"Informações da trilha de vídeo: %@", videoTrack);
-        
-        // Configuramos outputs para diferentes formatos de pixel
-        NSDictionary *outputSettings32BGRA = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)};
-        _videoTrackout_32BGRA = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings32BGRA];
-        
-        NSDictionary *outputSettingsVideoRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)};
-        _videoTrackout_420YpCbCr8BiPlanarVideoRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsVideoRange];
-        
-        NSDictionary *outputSettingsFullRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)};
-        _videoTrackout_420YpCbCr8BiPlanarFullRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsFullRange];
-        
-        if (!_videoTrackout_32BGRA || !_videoTrackout_420YpCbCr8BiPlanarVideoRange || !_videoTrackout_420YpCbCr8BiPlanarFullRange) {
-            writeLog(@"Falha ao criar outputs para os diferentes formatos");
-            return NO;
-        }
-        
-        [_reader addOutput:_videoTrackout_32BGRA];
-        [_reader addOutput:_videoTrackout_420YpCbCr8BiPlanarVideoRange];
-        [_reader addOutput:_videoTrackout_420YpCbCr8BiPlanarFullRange];
-        
-        if (![_reader startReading]) {
-            writeLog(@"Falha ao iniciar leitura: %@", _reader.error);
-            return NO;
-        }
-        
-        writeLog(@"Leitura do vídeo iniciada com sucesso");
-        return YES;
-        
-    } @catch(NSException *except) {
-        writeLog(@"ERRO ao inicializar leitura do vídeo: %@", except);
+    } @catch (NSException *exception) {
         return NO;
     }
 }
 
 // Verifica se o leitor de vídeo está no fim e reinicia se necessário
 - (void)checkAndRestartReaderIfNeeded {
-    if (_reader && _reader.status == AVAssetReaderStatusCompleted) {
-        writeLog(@"Vídeo chegou ao fim, reiniciando leitor");
-        [self releaseResources];
-        [self setupVideoReader];
+    // Não faz nada se o tweak estiver desativado
+    if (!g_tweakEnabled) {
+        return;
+    }
+    
+    @synchronized (self) {
+        if (_reader && _reader.status == AVAssetReaderStatusCompleted) {
+            [self releaseResources];
+            [self setupVideoReader];
+        }
     }
 }
 
 // Método para obter o frame atual de vídeo
-- (CMSampleBufferRef _Nullable)getCurrentFrame:(CMSampleBufferRef _Nullable)originSampleBuffer forceReNew:(BOOL)forceReNew {
+- (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer {
+    // VERIFICAÇÃO CRÍTICA - se o tweak estiver desativado, retorna o buffer original
+    if (!g_tweakEnabled) {
+        return originSampleBuffer;
+    }
+    
+    // Verificação de existência do arquivo
+    if (![g_fileManager fileExistsAtPath:g_videoFile]) {
+        return originSampleBuffer;
+    }
+    
     __block CMSampleBufferRef result = nil;
     
     dispatch_sync(_processingQueue, ^{
-        writeLog(@"GetFrame::getCurrentFrame - Início da função");
-        
-        // Informações do buffer original
+        // Inicializa variáveis para análise do buffer
         CMFormatDescriptionRef formatDescription = nil;
         CMMediaType mediaType = -1;
         FourCharCode subMediaType = -1;
@@ -170,42 +295,21 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
                 mediaType = CMFormatDescriptionGetMediaType(formatDescription);
                 subMediaType = CMFormatDescriptionGetMediaSubType(formatDescription);
                 
-                writeLog(@"Buffer original - MediaType: %d, SubMediaType: %d", (int)mediaType, (int)subMediaType);
-                
                 // Se não for vídeo, retornamos o buffer original sem alterações
                 if (mediaType != kCMMediaType_Video) {
-                    writeLog(@"Não é vídeo, retornando buffer original sem alterações");
                     result = originSampleBuffer;
                     return;
                 }
             }
-        } else {
-            writeLog(@"Nenhum buffer de entrada fornecido");
-        }
-        
-        // Verificamos se existe um arquivo de vídeo para substituição
-        if (![g_fileManager fileExistsAtPath:g_videoFile]) {
-            writeLog(@"Arquivo de vídeo para substituição não encontrado, retornando NULL");
-            result = nil;
-            return;
-        }
-        
-        // Se já temos um buffer válido e não precisamos forçar renovação, retornamos o mesmo
-        if (_sampleBuffer != nil && !g_canReleaseBuffer && CMSampleBufferIsValid(_sampleBuffer) && !forceReNew) {
-            writeLog(@"Reutilizando buffer existente");
-            result = _sampleBuffer;
-            return;
         }
         
         // Se precisamos recarregar o vídeo, inicializamos os componentes de leitura
-        if (g_bufferReload || !_reader) {
+        if (g_bufferReload || !_isSetup) {
             g_bufferReload = NO;
-            writeLog(@"Iniciando carregamento do novo vídeo");
             
             [self releaseResources];
             if (![self setupVideoReader]) {
-                writeLog(@"Falha ao configurar leitor de vídeo");
-                result = nil;
+                result = originSampleBuffer;
                 return;
             }
         }
@@ -214,7 +318,6 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
         [self checkAndRestartReaderIfNeeded];
         
         // Obtém um novo frame de cada formato
-        writeLog(@"Copiando próximo frame de cada formato");
         CMSampleBufferRef videoTrackout_32BGRA_Buffer = [_videoTrackout_32BGRA copyNextSampleBuffer];
         CMSampleBufferRef videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer = [_videoTrackout_420YpCbCr8BiPlanarVideoRange copyNextSampleBuffer];
         CMSampleBufferRef videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer = [_videoTrackout_420YpCbCr8BiPlanarFullRange copyNextSampleBuffer];
@@ -222,52 +325,38 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
         CMSampleBufferRef newsampleBuffer = nil;
         
         // Escolhe o buffer adequado com base no formato do buffer original
-        switch(subMediaType) {
+        switch (subMediaType) {
             case kCVPixelFormatType_32BGRA:
-                writeLog(@"Usando formato: kCVPixelFormatType_32BGRA");
                 if (videoTrackout_32BGRA_Buffer) {
                     CMSampleBufferCreateCopy(kCFAllocatorDefault, videoTrackout_32BGRA_Buffer, &newsampleBuffer);
                 }
                 break;
             case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-                writeLog(@"Usando formato: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange");
                 if (videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer) {
                     CMSampleBufferCreateCopy(kCFAllocatorDefault, videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer, &newsampleBuffer);
                 }
                 break;
             case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
-                writeLog(@"Usando formato: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange");
                 if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer) {
                     CMSampleBufferCreateCopy(kCFAllocatorDefault, videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer, &newsampleBuffer);
                 }
                 break;
             default:
-                //writeLog(@"Formato não reconhecido (%d), usando 32BGRA como padrão", (int)subMediaType);
-                writeLog(@"Formato não reconhecido (%d), usando 420F como padrão", (int)subMediaType);
+                // Para formatos desconhecidos, usamos o formato 420YpCbCr8BiPlanarFullRange como padrão
                 if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer) {
                     CMSampleBufferCreateCopy(kCFAllocatorDefault, videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer, &newsampleBuffer);
                 }
         }
         
         // Libera os buffers temporários
-        if (videoTrackout_32BGRA_Buffer != nil) {
-            CFRelease(videoTrackout_32BGRA_Buffer);
-            writeLog(@"Buffer 32BGRA liberado");
-        }
-        if (videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer != nil) {
-            CFRelease(videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer);
-            writeLog(@"Buffer 420YpCbCr8BiPlanarVideoRange liberado");
-        }
-        if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer != nil) {
-            CFRelease(videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer);
-            writeLog(@"Buffer 420YpCbCr8BiPlanarFullRange liberado");
-        }
+        if (videoTrackout_32BGRA_Buffer) CFRelease(videoTrackout_32BGRA_Buffer);
+        if (videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer) CFRelease(videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer);
+        if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer) CFRelease(videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer);
         
         // Se não conseguimos criar um novo buffer, marca para recarregar na próxima vez
         if (newsampleBuffer == nil) {
             g_bufferReload = YES;
-            writeLog(@"Falha ao criar novo sample buffer, marcando para recarregar");
-            result = nil;
+            result = originSampleBuffer;
             return;
         }
         
@@ -275,32 +364,20 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
         if (_sampleBuffer != nil) {
             CFRelease(_sampleBuffer);
             _sampleBuffer = nil;
-            writeLog(@"Buffer antigo liberado");
         }
         
         // Se temos um buffer original, precisamos copiar propriedades dele
         if (originSampleBuffer != nil) {
-            writeLog(@"Processando buffer com base no original");
-            
             CMSampleBufferRef copyBuffer = nil;
             CVImageBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(newsampleBuffer);
             
             if (pixelBuffer) {
-                writeLog(@"Dimensões do pixel buffer: %ldx%ld",
-                           CVPixelBufferGetWidth(pixelBuffer),
-                           CVPixelBufferGetHeight(pixelBuffer));
-                
                 // Obtém informações de tempo do buffer original
                 CMSampleTimingInfo sampleTime = {
                     .duration = CMSampleBufferGetDuration(originSampleBuffer),
                     .presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(originSampleBuffer),
                     .decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originSampleBuffer)
                 };
-                
-                writeLog(@"Timing do buffer - Duration: %lld, PTS: %lld, DTS: %lld",
-                          sampleTime.duration.value,
-                          sampleTime.presentationTimeStamp.value,
-                          sampleTime.decodeTimeStamp.value);
                 
                 // Cria descrição de formato de vídeo para o novo buffer
                 CMVideoFormatDescriptionRef videoInfo = nil;
@@ -311,69 +388,51 @@ static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
                     status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, true, NULL, NULL, videoInfo, &sampleTime, &copyBuffer);
                     
                     if (status == noErr && copyBuffer != nil) {
-                        writeLog(@"Buffer copiado com sucesso");
                         _sampleBuffer = copyBuffer;
-                    } else {
-                        writeLog(@"FALHA ao criar buffer copiado: status %d", (int)status);
                     }
                     
                     CFRelease(videoInfo);
-                } else {
-                    writeLog(@"FALHA ao criar descrição de formato: status %d", (int)status);
                 }
             }
             
             CFRelease(newsampleBuffer);
         } else {
             // Se não temos buffer original, usamos o novo diretamente
-            writeLog(@"Usando novo buffer diretamente (sem buffer original)");
             _sampleBuffer = newsampleBuffer;
         }
         
         // Verifica se o buffer final é válido
         if (_sampleBuffer != nil && CMSampleBufferIsValid(_sampleBuffer)) {
-            writeLog(@"GetFrame::getCurrentFrame - Retornando buffer válido");
             result = _sampleBuffer;
         } else {
-            writeLog(@"GetFrame::getCurrentFrame - Retornando NULL (buffer inválido)");
-            result = nil;
+            result = originSampleBuffer;
         }
     });
     
     return result;
 }
-
-// Método para obter a janela principal da aplicação
-+(UIWindow*)getKeyWindow{
-    writeLog(@"GetFrame::getKeyWindow - Buscando janela principal");
-    
-    // Necessário usar [GetFrame getKeyWindow].rootViewController
-    UIWindow *keyWindow = nil;
-    if (keyWindow == nil) {
-        NSArray *windows = UIApplication.sharedApplication.windows;
-        for(UIWindow *window in windows){
-            if(window.isKeyWindow) {
-                keyWindow = window;
-                writeLog(@"Janela principal encontrada");
-                break;
-            }
-        }
-    }
-    return keyWindow;
-}
 @end
 
-
-// Elementos de UI para o tweak
-static CALayer *g_maskLayer = nil;
+// -------------- HOOKS --------------
 
 // Hook na layer de preview da câmera
 %hook AVCaptureVideoPreviewLayer
-- (void)addSublayer:(CALayer *)layer{
-    writeLog(@"AVCaptureVideoPreviewLayer::addSublayer - Adicionando sublayer: %@", layer);
+- (void)layoutSublayers {
+    %orig;
+    
+    // Garante que todas as camadas tenham o tamanho correto após layouts
+    if (g_previewLayer != nil) {
+        g_previewLayer.frame = self.bounds;
+        if (g_maskLayer != nil) {
+            g_maskLayer.frame = self.bounds;
+        }
+    }
+}
+
+- (void)addSublayer:(CALayer *)layer {
     %orig;
 
-    // Configura display link para atualização contínua
+    // Configura display link para atualização contínua, se não existir
     static CADisplayLink *displayLink = nil;
     if (displayLink == nil) {
         displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(step:)];
@@ -386,12 +445,10 @@ static CALayer *g_maskLayer = nil;
         }
         
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-        writeLog(@"DisplayLink criado para atualização contínua");
     }
 
-    // Adiciona camada de preview se ainda não existe
+    // Adiciona camadas de preview se ainda não existem
     if (![[self sublayers] containsObject:g_previewLayer]) {
-        writeLog(@"Configurando camadas de preview");
         g_previewLayer = [[AVSampleBufferDisplayLayer alloc] init];
 
         // Máscara preta para cobrir a visualização original
@@ -399,167 +456,134 @@ static CALayer *g_maskLayer = nil;
         g_maskLayer.backgroundColor = [UIColor blackColor].CGColor;
         g_maskLayer.opacity = 0; // Começa invisível
         
+        // Configura o tipo de gravidade de vídeo para garantir comportamento consistente
+        [g_previewLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
+        g_previewLayer.opacity = 0; // Começa invisível
+        
+        // Configura o tamanho das camadas imediatamente usando o bounds da camada atual
+        g_previewLayer.frame = self.bounds;
+        g_maskLayer.frame = self.bounds;
+        
+        // Insere as camadas na hierarquia
         [self insertSublayer:g_maskLayer above:layer];
         [self insertSublayer:g_previewLayer above:g_maskLayer];
-        g_previewLayer.opacity = 0; // Começa invisível
-
-        // Inicializa tamanho das camadas na thread principal
-        dispatch_async(dispatch_get_main_queue(), ^{
-            g_previewLayer.frame = [UIApplication sharedApplication].keyWindow.bounds;
-            g_maskLayer.frame = [UIApplication sharedApplication].keyWindow.bounds;
-            writeLog(@"Tamanho das camadas inicializado: %@",
-                     NSStringFromCGRect([UIApplication sharedApplication].keyWindow.bounds));
-        });
+        
+        // Configuração adicional para o comportamento correto
+        g_previewLayer.actions = @{
+            @"opacity": [NSNull null],  // Desativa animação de opacidade
+            @"bounds": [NSNull null],   // Desativa animação de bounds
+            @"position": [NSNull null]  // Desativa animação de posição
+        };
+        
+        g_maskLayer.actions = @{
+            @"opacity": [NSNull null],
+            @"bounds": [NSNull null],
+            @"position": [NSNull null]
+        };
     }
 }
 
 // Método adicionado para atualização contínua do preview
 %new
--(void)step:(CADisplayLink *)sender{
-    // Cache de verificação de existência do arquivo para evitar múltiplas verificações
-    static NSTimeInterval lastFileCheckTime = 0;
-    static BOOL fileExists = NO;
-    
-    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
-    
-    // Verifica a existência do arquivo a cada segundo
-    if (currentTime - lastFileCheckTime > 1.0) {
-        fileExists = [g_fileManager fileExistsAtPath:g_videoFile];
-        lastFileCheckTime = currentTime;
-    }
-    
-    // Controla a visibilidade das camadas baseado na existência do arquivo de vídeo
-    if (fileExists) {
-        // Animação suave para mostrar as camadas, se não estiverem visíveis
-        if (g_maskLayer != nil && g_maskLayer.opacity < 1.0) {
-            g_maskLayer.opacity = MIN(g_maskLayer.opacity + 0.1, 1.0);
+- (void)step:(CADisplayLink *)sender {
+    // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, garante que as camadas estejam invisíveis
+    if (!g_tweakEnabled) {
+        if (g_maskLayer != nil) {
+            g_maskLayer.opacity = 0.0;
         }
         if (g_previewLayer != nil) {
-            if (g_previewLayer.opacity < 1.0) {
-                g_previewLayer.opacity = MIN(g_previewLayer.opacity + 0.1, 1.0);
-            }
-            [g_previewLayer setVideoGravity:[self videoGravity]];
+            g_previewLayer.opacity = 0.0;
         }
-    } else {
-        // Animação suave para esconder as camadas, se estiverem visíveis
-        if (g_maskLayer != nil && g_maskLayer.opacity > 0.0) {
-            g_maskLayer.opacity = MAX(g_maskLayer.opacity - 0.1, 0.0);
-        }
-        if (g_previewLayer != nil && g_previewLayer.opacity > 0.0) {
-            g_previewLayer.opacity = MAX(g_previewLayer.opacity - 0.1, 0.0);
-        }
-        return; // Evita processamento adicional se não houver arquivo
+        return;
     }
-
-    // Se a câmera está ativa e a camada de preview existe
-    if (g_cameraRunning && g_previewLayer != nil) {
-        // Atualiza o tamanho da camada de preview
-        if (!CGRectEqualToRect(g_previewLayer.frame, self.bounds)) {
+    
+    // Verifica se o vídeo existe
+    BOOL shouldShowOverlay = [g_fileManager fileExistsAtPath:g_videoFile];
+    
+    // Controla a visibilidade das camadas - simples e direto
+    if (shouldShowOverlay) {
+        // Atualiza o tamanho das camadas antes de torná-las visíveis
+        BOOL needsResize = !CGRectEqualToRect(g_previewLayer.frame, self.bounds);
+        if (needsResize) {
             g_previewLayer.frame = self.bounds;
             g_maskLayer.frame = self.bounds;
         }
         
-        // Aplica rotação apenas se a orientação mudou
-        if (g_photoOrientation != g_lastOrientation) {
-            g_lastOrientation = g_photoOrientation;
-            
-            switch(g_photoOrientation) {
-                case AVCaptureVideoOrientationPortrait:
-                case AVCaptureVideoOrientationPortraitUpsideDown:
-                    g_previewLayer.transform = CATransform3DMakeRotation(0 / 180.0 * M_PI, 0.0, 0.0, 1.0);
-                    break;
-                case AVCaptureVideoOrientationLandscapeRight:
-                    g_previewLayer.transform = CATransform3DMakeRotation(90 / 180.0 * M_PI, 0.0, 0.0, 1.0);
-                    break;
-                case AVCaptureVideoOrientationLandscapeLeft:
-                    g_previewLayer.transform = CATransform3DMakeRotation(-90 / 180.0 * M_PI, 0.0, 0.0, 1.0);
-                    break;
-                default:
-                    g_previewLayer.transform = self.transform;
-            }
+        // Camadas 100% visíveis quando ativado
+        if (g_maskLayer != nil) {
+            g_maskLayer.opacity = 1.0;
         }
+        if (g_previewLayer != nil) {
+            g_previewLayer.opacity = 1.0;
+            // Usa gravidade fixa para comportamento consistente
+            [g_previewLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
+        }
+    } else {
+        // Camadas 100% invisíveis quando não há vídeo
+        if (g_maskLayer != nil) {
+            g_maskLayer.opacity = 0.0;
+        }
+        if (g_previewLayer != nil) {
+            g_previewLayer.opacity = 0.0;
+        }
+        return; // Evita processamento adicional
+    }
 
-        // Controle para evitar conflito com VideoDataOutput
+    // Se a câmera está ativa e a camada de preview existe
+    if (g_cameraRunning && g_previewLayer != nil && g_tweakEnabled) {
+        // Controle para evitar conflito com VideoDataOutput e limitar FPS
         static NSTimeInterval refreshTime = 0;
-        NSTimeInterval nowTime = currentTime * 1000;
+        NSTimeInterval nowTime = [[NSDate date] timeIntervalSince1970] * 1000;
         
         // Atualiza o preview apenas se não houver atualização recente do VideoDataOutput
-        if (nowTime - g_refreshPreviewByVideoDataOutputTime > 1000) {
-            // Controle de taxa de frames (30 FPS)
-            if (nowTime - refreshTime > 1000 / 30 && g_previewLayer.readyForMoreMediaData) {
-                refreshTime = nowTime;
+        if (nowTime - g_refreshPreviewByVideoDataOutputTime > 100 &&
+            nowTime - refreshTime > 33.33 && // Aprox. 30 FPS
+            g_previewLayer.readyForMoreMediaData) {
+            
+            refreshTime = nowTime;
+            
+            // Obtém o próximo frame
+            CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:nil];
+            if (newBuffer != nil) {
+                // Limpa quaisquer frames na fila
+                [g_previewLayer flush];
                 
-                // Obtém o próximo frame
-                CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:nil forceReNew:NO];
-                if (newBuffer != nil) {
-                    // Limpa quaisquer frames na fila
-                    [g_previewLayer flush];
-                    
-                    // Cria uma cópia e adiciona à camada de preview
-                    static CMSampleBufferRef copyBuffer = nil;
-                    if (copyBuffer != nil) {
-                        CFRelease(copyBuffer);
-                        copyBuffer = nil;
-                    }
-                    
-                    CMSampleBufferCreateCopy(kCFAllocatorDefault, newBuffer, &copyBuffer);
-                    if (copyBuffer != nil) {
-                        [g_previewLayer enqueueSampleBuffer:copyBuffer];
-                    }
-                }
+                // Adiciona à camada de preview
+                [g_previewLayer enqueueSampleBuffer:newBuffer];
             }
         }
     }
 }
 %end
 
-
 // Hook para gerenciar o estado da sessão da câmera
 %hook AVCaptureSession
-// Método chamado quando a câmera é iniciada
 -(void) startRunning {
-    writeLog(@"AVCaptureSession::startRunning - Câmera iniciando");
     g_cameraRunning = YES;
     g_bufferReload = YES;
     g_refreshPreviewByVideoDataOutputTime = [[NSDate date] timeIntervalSince1970] * 1000;
-    writeLog(@"AVCaptureSession iniciada com preset: %@", [self sessionPreset]);
     %orig;
 }
 
-// Método chamado quando a câmera é parada
 -(void) stopRunning {
-    writeLog(@"AVCaptureSession::stopRunning - Câmera parando");
     g_cameraRunning = NO;
     %orig;
 }
 
-// Método chamado quando um dispositivo de entrada é adicionado à sessão
 - (void)addInput:(AVCaptureDeviceInput *)input {
-    writeLog(@"AVCaptureSession::addInput - Adicionando dispositivo: %@", [input device]);
-    
     // Determina qual câmera está sendo usada (frontal ou traseira)
     if ([[input device] position] > 0) {
         g_cameraPosition = [[input device] position] == 1 ? @"B" : @"F";
-        writeLog(@"Posição da câmera definida como: %@", g_cameraPosition);
     }
-    %orig;
-}
-
-// Método chamado quando um dispositivo de saída é adicionado à sessão
-- (void)addOutput:(AVCaptureOutput *)output{
-    writeLog(@"AVCaptureSession::addOutput - Adicionando output: %@", output);
     %orig;
 }
 %end
 
 // Hook para intercepção do fluxo de vídeo em tempo real
 %hook AVCaptureVideoDataOutput
-- (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue{
-    writeLog(@"AVCaptureVideoDataOutput::setSampleBufferDelegate - Delegate: %@, Queue: %@", sampleBufferDelegate, sampleBufferCallbackQueue);
-    
+- (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
     // Verificações de segurança
     if (sampleBufferDelegate == nil || sampleBufferCallbackQueue == nil) {
-        writeLog(@"Delegate ou queue nulos, chamando método original sem modificações");
         return %orig;
     }
     
@@ -575,42 +599,46 @@ static CALayer *g_maskLayer = nil;
     
     // Verifica se esta classe já foi "hooked"
     if (![hooked containsObject:className]) {
-        writeLog(@"Hooking nova classe de delegate: %@", className);
         [hooked addObject:className];
         
         // Hook para o método que recebe cada frame de vídeo
         __block void (*original_method)(id self, SEL _cmd, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) = nil;
-
-        // Verifica as configurações de vídeo
-        writeLog(@"Configurações de vídeo: %@", [self videoSettings]);
         
         // Hook do método de recebimento de frames
         MSHookMessageEx(
             [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
-            imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection){
+            imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) {
                 // Atualiza timestamp para controle de conflito com preview
                 g_refreshPreviewByVideoDataOutputTime = ([[NSDate date] timeIntervalSince1970]) * 1000;
                 
-                // Armazena a orientação atual do vídeo
-                g_photoOrientation = [connection videoOrientation];
-                
-                // Verifica se o arquivo de vídeo existe antes de tentar substituir
-                if ([g_fileManager fileExistsAtPath:g_videoFile]) {
-                    // Obtém um frame do vídeo para substituir o buffer
-                    CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:sampleBuffer forceReNew:NO];
-                    
-                    // Atualiza o preview usando o buffer
-                    if (newBuffer != nil && g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
-                        [g_previewLayer flush];
-                        [g_previewLayer enqueueSampleBuffer:newBuffer];
-                    }
-                    
-                    // Chama o método original com o buffer substituído
-                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, newBuffer != nil ? newBuffer : sampleBuffer, connection);
+                // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, não faz nada
+                if (!g_tweakEnabled) {
+                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                                          output, sampleBuffer, connection);
                 }
                 
-                // Se não há vídeo para substituir, usa o buffer original
-                return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, sampleBuffer, connection);
+                // Verifica se o arquivo de vídeo existe
+                if ([g_fileManager fileExistsAtPath:g_videoFile]) {
+                    // Obtém um frame do vídeo para substituir o buffer
+                    CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:sampleBuffer];
+                    
+                    // Verifica se obtivemos um buffer válido e diferente do original
+                    if (newBuffer != nil && newBuffer != sampleBuffer) {
+                        // Atualiza o preview usando o buffer
+                        if (g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
+                            [g_previewLayer flush];
+                            [g_previewLayer enqueueSampleBuffer:newBuffer];
+                        }
+                        
+                        // Chama o método original com o buffer substituído
+                        return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                                              output, newBuffer, connection);
+                    }
+                }
+                
+                // Se não há vídeo para substituir ou falhou, usa o buffer original
+                return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                                      output, sampleBuffer, connection);
             }), (IMP*)&original_method
         );
     }
@@ -620,174 +648,27 @@ static CALayer *g_maskLayer = nil;
 }
 %end
 
-// Variáveis para controle da interface de usuário
-static NSTimeInterval g_volume_up_time = 0;
-static NSTimeInterval g_volume_down_time = 0;
-
 // Hook para os controles de volume
 %hook VolumeControl
-// Método chamado quando volume é aumentado
 -(void)increaseVolume {
     NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
-    
-    // Salva o timestamp atual
     g_volume_up_time = nowtime;
-    
-    // Chama o método original
     %orig;
 }
 
-// Método chamado quando volume é diminuído
 -(void)decreaseVolume {
     NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
     
     // Verifica se o botão de aumentar volume foi pressionado recentemente (menos de 1 segundo)
     if (g_volume_up_time != 0 && nowtime - g_volume_up_time < 1) {
-        writeLog(@"Sequência volume-up + volume-down detectada, abrindo menu");
-
-        // Verifica se o arquivo de vídeo existe
-        BOOL videoActive = [g_fileManager fileExistsAtPath:g_videoFile];
-        
-        // Cria alerta para mostrar status e opções
-        NSString *title = videoActive ? @"iOS-VCAM ✅" : @"iOS-VCAM";
-        NSString *message = videoActive ?
-            @"A substituição do feed da câmera está ativa." :
-            @"A substituição do feed da câmera está desativada.";
-        
-        UIAlertController *alertController = [UIAlertController
-            alertControllerWithTitle:title
-            message:message
-            preferredStyle:UIAlertControllerStyleAlert];
-        
-        // Opção para desativar substituição (só aparece se estiver ativo)
-        if (videoActive) {
-            UIAlertAction *disableAction = [UIAlertAction
-                actionWithTitle:@"Desativar substituição"
-                style:UIAlertActionStyleDestructive
-                handler:^(UIAlertAction *action) {
-                    writeLog(@"Opção 'Desativar substituição' escolhida");
-                    
-                    // Força a liberação de recursos antes de tentar remover o arquivo
-                    g_bufferReload = YES;
-                    g_canReleaseBuffer = YES;
-                    
-                    // Libera referências ao vídeo
-                    [[GetFrame sharedInstance] performSelector:@selector(releaseResources)];
-                    
-                    // Tenta remover o arquivo com várias abordagens para garantir que funcione
-                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        writeLog(@"Tentando remover arquivo de vídeo");
-                        
-                        // Primeira tentativa - método padrão
-                        NSError *error = nil;
-                        BOOL success = [g_fileManager removeItemAtPath:g_videoFile error:&error];
-                        
-                        if (!success) {
-                            writeLog(@"Primeira tentativa falhou: %@", error);
-                            
-                            // Segunda tentativa - usando funções POSIX
-                            int result = unlink([g_videoFile UTF8String]);
-                            if (result != 0) {
-                                writeLog(@"Segunda tentativa falhou com erro: %d", errno);
-                                
-                                // Terceira tentativa - criar arquivo vazio para sobrescrever
-                                [@"" writeToFile:g_videoFile atomically:YES encoding:NSUTF8StringEncoding error:&error];
-                                [g_fileManager removeItemAtPath:g_videoFile error:nil];
-                            }
-                        }
-                        
-                        // Verifica se a remoção foi bem-sucedida
-                        if (![g_fileManager fileExistsAtPath:g_videoFile]) {
-                            writeLog(@"Arquivo de vídeo removido com sucesso");
-                            
-                            // Avisa o usuário que o vídeo foi desativado
-                            UIAlertController *successAlert = [UIAlertController
-                                alertControllerWithTitle:@"Sucesso"
-                                message:@"A substituição do feed da câmera foi desativada."
-                                preferredStyle:UIAlertControllerStyleAlert];
-                            
-                            UIAlertAction *okAction = [UIAlertAction
-                                actionWithTitle:@"OK"
-                                style:UIAlertActionStyleDefault
-                                handler:nil];
-                            
-                            [successAlert addAction:okAction];
-                            [[GetFrame getKeyWindow].rootViewController presentViewController:successAlert animated:YES completion:nil];
-                        } else {
-                            writeLog(@"Falha ao remover arquivo de vídeo");
-                            
-                            // Informa o usuário sobre a falha
-                            UIAlertController *failureAlert = [UIAlertController
-                                alertControllerWithTitle:@"Erro"
-                                message:@"Não foi possível desativar a substituição do feed da câmera. Tente novamente."
-                                preferredStyle:UIAlertControllerStyleAlert];
-                            
-                            UIAlertAction *okAction = [UIAlertAction
-                                actionWithTitle:@"OK"
-                                style:UIAlertActionStyleDefault
-                                handler:nil];
-                            
-                            [failureAlert addAction:okAction];
-                            [[GetFrame getKeyWindow].rootViewController presentViewController:failureAlert animated:YES completion:nil];
-                        }
-                    });
-                }];
-            [alertController addAction:disableAction];
+        // Se temos uma combinação de teclas, mostramos o menu
+        UIWindow *keyWindow = getKeyWindow();
+        if (keyWindow && keyWindow.rootViewController) {
+            showMenuAlert(keyWindow.rootViewController);
         }
-        
-        // Opção para informações de status
-        UIAlertAction *statusAction = [UIAlertAction
-            actionWithTitle:@"Ver status"
-            style:UIAlertActionStyleDefault
-            handler:^(UIAlertAction *action) {
-                writeLog(@"Opção 'Ver status' escolhida");
-                
-                // Coleta informações de status
-                NSString *statusInfo = [NSString stringWithFormat:
-                    @"Arquivo de vídeo: %@\n"
-                    @"Câmera ativa: %@\n"
-                    @"Posição da câmera: %@\n"
-                    @"Orientação: %d\n"
-                    @"Aplicativo atual: %@",
-                    [g_fileManager fileExistsAtPath:g_videoFile] ? @"Presente" : @"Ausente",
-                    g_cameraRunning ? @"Sim" : @"Não",
-                    g_cameraPosition,
-                    (int)g_photoOrientation,
-                    [NSProcessInfo processInfo].processName
-                ];
-                
-                UIAlertController *statusAlert = [UIAlertController
-                    alertControllerWithTitle:@"Status do iOS-VCAM"
-                    message:statusInfo
-                    preferredStyle:UIAlertControllerStyleAlert];
-                
-                UIAlertAction *okAction = [UIAlertAction
-                    actionWithTitle:@"OK"
-                    style:UIAlertActionStyleDefault
-                    handler:nil];
-                
-                [statusAlert addAction:okAction];
-                [[GetFrame getKeyWindow].rootViewController presentViewController:statusAlert animated:YES completion:nil];
-            }];
-        
-        // Opção para cancelar
-        UIAlertAction *cancelAction = [UIAlertAction
-            actionWithTitle:@"Fechar"
-            style:UIAlertActionStyleCancel
-            handler:nil];
-        
-        // Adiciona as ações ao alerta
-        [alertController addAction:statusAction];
-        [alertController addAction:cancelAction];
-        
-        // Apresenta o alerta
-        [[GetFrame getKeyWindow].rootViewController presentViewController:alertController animated:YES completion:nil];
     }
     
-    // Salva o timestamp atual
     g_volume_down_time = nowtime;
-    
-    // Chama o método original
     %orig;
 }
 %end
@@ -795,33 +676,28 @@ static NSTimeInterval g_volume_down_time = 0;
 // Função chamada quando o tweak é carregado
 %ctor {
     writeLog(@"--------------------------------------------------");
-    writeLog(@"VCamTeste - Inicializando tweak");
+    writeLog(@"iOS-VCAM - Inicializando tweak");
     
     // Inicializa hooks específicos para versões do iOS
     if([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){13, 0, 0}]) {
-        writeLog(@"Detectado iOS 13 ou superior, inicializando hooks para VolumeControl");
         %init(VolumeControl = NSClassFromString(@"SBVolumeControl"));
     }
     
     // Inicializa recursos globais
-    writeLog(@"Inicializando recursos globais");
     g_fileManager = [NSFileManager defaultManager];
     
     writeLog(@"Processo atual: %@", [NSProcessInfo processInfo].processName);
-    writeLog(@"Bundle ID: %@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleIdentifier"]);
     writeLog(@"Tweak inicializado com sucesso");
 }
 
 // Função chamada quando o tweak é descarregado
-%dtor{
-    writeLog(@"VCamTeste - Finalizando tweak");
+%dtor {
+    writeLog(@"iOS-VCAM - Finalizando tweak");
     
-    // Limpa variáveis globais
+    // Libera recursos antes de descarregar
     g_fileManager = nil;
-    g_canReleaseBuffer = YES;
-    g_bufferReload = YES;
     g_previewLayer = nil;
-    g_refreshPreviewByVideoDataOutputTime = 0;
+    g_maskLayer = nil;
     g_cameraRunning = NO;
     
     writeLog(@"Tweak finalizado com sucesso");

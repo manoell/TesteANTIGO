@@ -10,9 +10,6 @@ extern "C" {
 // Uma única função de log simples
 void writeLog(NSString *format, ...);
 
-// Função para limpar o arquivo de log
-//void clearLogFile(void);
-
 #ifdef __cplusplus
 }
 #endif

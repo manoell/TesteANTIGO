@@ -13,6 +13,7 @@
 @property (nonatomic, strong) UIButton *substitutionButton; // Botão para burlador
 @property (nonatomic, strong) UIImageView *iconView;
 @property (nonatomic, strong) NSTimer *previewUpdateTimer; // Timer para atualizar preview
+@property (nonatomic, strong) AVSampleBufferDisplayLayer *previewLayer; // Layer para mostrar frames exatos
 
 // State tracking
 @property (nonatomic, assign) CGPoint lastPosition;
@@ -133,6 +134,14 @@
     self.videoView.delegate = self;
     self.videoView.backgroundColor = [UIColor blackColor];
     [self.contentView addSubview:self.videoView];
+    
+    // Configurar AVSampleBufferDisplayLayer para mostrar frames exatos
+    self.previewLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    self.previewLayer.backgroundColor = [UIColor clearColor].CGColor;
+    self.previewLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    
+    // Adicionar a layer de amostra como sublayer da camada principal
+    [self.videoView.layer addSublayer:self.previewLayer];
     
     // Calcular altura para manter proporção 16:9
     CGFloat videoHeight = (self.expandedFrame.size.width * 9.0 / 16.0) + 20;
@@ -280,19 +289,40 @@
         return;
     }
     
-    // Obter um frame do WebRTC para visualização
-    CMSampleBufferRef sampleBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:NO];
+    // Verificar se previewLayer está configurado corretamente
+    if (!self.previewLayer) {
+        writeLog(@"[FloatingWindow] PreviewLayer não configurado");
+        return;
+    }
+    
+    // Atualizar o tamanho do previewLayer para corresponder à vista de vídeo
+    if (!CGRectEqualToRect(self.previewLayer.frame, self.videoView.layer.bounds)) {
+        self.previewLayer.frame = self.videoView.layer.bounds;
+    }
+    
+    // Obter um frame do WebRTC para visualização usando o mesmo método que será usado para substituição
+    CMSampleBufferRef sampleBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
     
     if (sampleBuffer) {
         // Se tiver vídeo e o preview layer estiver pronto para receber mais
-        if (self.videoView && self.isPreviewActive) {
-            writeLog(@"[FloatingWindow] Frame para preview obtido com sucesso");
+        if (self.previewLayer.readyForMoreMediaData) {
+            // Limpar qualquer buffer anterior
+            [self.previewLayer flush];
+            
+            // Adicionar o novo buffer
+            [self.previewLayer enqueueSampleBuffer:sampleBuffer];
+            
+            // Incrementar contador de frames atualizado
+            static int frameCount = 0;
+            if (++frameCount % 100 == 0) {
+                writeLog(@"[FloatingWindow] Preview atualizado com frame #%d", frameCount);
+            }
         }
         
         // Liberar o buffer após uso
         CFRelease(sampleBuffer);
     } else {
-        // MODIFICADO: Reduzir a frequência de logs de erro
+        // Controlar frequência de logs de erro
         static NSTimeInterval lastLogTime = 0;
         NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
         
@@ -364,13 +394,6 @@
         }
         [self startPreview];
         writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames - togglePreview");
-        CMSampleBufferRef testBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
-        if (testBuffer) {
-            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso - togglePreview");
-            CFRelease(testBuffer);
-        } else {
-            writeLog(@"[FloatingWindow] Falha ao obter frame de teste - togglePreview");
-        }
     }
 }
 
@@ -472,25 +495,13 @@
     // Mostrar indicador de carregamento
     [self.loadingIndicator startAnimating];
     
-    // Verificar se o WebRTC já está conectado
-    if (self.webRTCManager.state == WebRTCManagerStateConnected && self.webRTCManager.videoTrack) {
-        // Se já estiver conectado, adicionar o videoTrack ao videoView
-        [self.webRTCManager.videoTrack addRenderer:self.videoView];
-        [self.loadingIndicator stopAnimating];
-        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames - startPreview");
-        CMSampleBufferRef testBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
-        if (testBuffer) {
-            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso - startPreview");
-            CFRelease(testBuffer);
-        } else {
-            writeLog(@"[FloatingWindow] Falha ao obter frame de teste - startPreview");
-        }
-    } else if (self.webRTCManager.state != WebRTCManagerStateConnecting) {
-        // Se não estiver conectado nem conectando, exibir uma mensagem
-        writeLog(@"[FloatingWindow] WebRTC não está conectado para mostrar preview");
-        // Não fazemos nada aqui, pois quando a conexão for estabelecida,
-        // o didReceiveVideoTrack será chamado e atualizará o videoView
+    // Garantir que o previewLayer seja visível e esteja acima de qualquer outra camada
+    if (self.previewLayer.superlayer != self.videoView.layer) {
+        [self.videoView.layer addSublayer:self.previewLayer];
     }
+    
+    self.previewLayer.frame = self.videoView.layer.bounds;
+    self.previewLayer.hidden = NO;
     
     // Iniciar timer para atualizar o preview
     [self startPreviewUpdateTimer];
@@ -499,6 +510,11 @@
     if (self.windowState == FloatingWindowStateMinimized) {
         [self setWindowState:FloatingWindowStateExpanded];
     }
+    
+    // Parar indicador de carregamento quando o preview estiver ativo
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self.loadingIndicator stopAnimating];
+    });
 }
 
 - (void)stopPreview {
@@ -514,9 +530,10 @@
     // Parar o timer de atualização
     [self stopPreviewUpdateTimer];
     
-    // Remover o videoTrack do videoView para parar a exibição do preview
-    if (self.webRTCManager && self.webRTCManager.videoTrack) {
-        [self.webRTCManager.videoTrack removeRenderer:self.videoView];
+    // Limpar e ocultar o previewLayer
+    if (self.previewLayer) {
+        [self.previewLayer flush];
+        self.previewLayer.hidden = YES;
     }
     
     // NÃO desconectar WebRTC se o burlador estiver ativo
@@ -557,11 +574,9 @@
     dispatch_async(dispatch_get_main_queue(), ^{
         writeLog(@"[FloatingWindow] Recebido videoTrack do WebRTC");
         
-        // Adicionar o videoTrack ao videoView APENAS se o preview estiver ativo
-        if (self.videoView && self.isPreviewActive) {
-            [videoTrack addRenderer:self.videoView];
-            writeLog(@"[FloatingWindow] VideoTrack adicionado ao videoView");
-        }
+        // Não vamos mais adicionar o videoTrack diretamente ao videoView
+        // Em vez disso, usaremos o AVSampleBufferDisplayLayer para mostrar os frames
+        // processados pelo WebRTCManager, tornando o preview idêntico à substituição
         
         // Parar indicador de carregamento
         [self.loadingIndicator stopAnimating];
@@ -726,7 +741,12 @@
         
         // Fundo escuro
         self.backgroundColor = [UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:0.9];
-    } completion:nil];
+    } completion:^(BOOL finished) {
+        // Atualizar frame do previewLayer para o novo tamanho
+        if (self.previewLayer) {
+            self.previewLayer.frame = self.videoView.layer.bounds;
+        }
+    }];
 }
 
 - (void)updateMinimizedIconWithState {
@@ -847,6 +867,11 @@
             
             // Update minimized icon state
             [self updateMinimizedIconWithState];
+            
+            // Atualizar tamanho do previewLayer
+            if (self.previewLayer) {
+                self.previewLayer.frame = self.videoView.layer.bounds;
+            }
         });
     }
 }

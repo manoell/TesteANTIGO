@@ -15,13 +15,13 @@ typedef NS_ENUM(NSInteger, FloatingWindowState) {
 @property (nonatomic, assign) FloatingWindowState windowState;
 @property (nonatomic, assign) BOOL isReceivingFrames;
 @property (nonatomic, assign) CGSize lastFrameSize;
-@property (nonatomic, assign) BOOL isSubstitutionActive;  // Nova propriedade para controlar estado do burlador
+@property (nonatomic, assign) BOOL isSubstitutionActive;  // Propriedade para controlar estado do burlador
 
 - (instancetype)init;
 - (void)show;
 - (void)hide;
 - (void)togglePreview:(UIButton *)sender;
-- (void)toggleSubstitution:(UIButton *)sender;  // Novo método para ativar/desativar burlador
+- (void)toggleSubstitution:(UIButton *)sender;  // Método para ativar/desativar burlador
 - (void)updateConnectionStatus:(NSString *)status;
 
 @end

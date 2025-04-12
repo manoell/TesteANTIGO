@@ -45,4 +45,3 @@ void writeLog(NSString *format, ...) {
         [gLogLock unlock];
     }
 }
-

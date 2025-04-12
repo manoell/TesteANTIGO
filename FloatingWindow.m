@@ -1,23 +1,16 @@
-#import "DarwinNotifications.h"
 #import "FloatingWindow.h"
-#import "WebRTCManager.h"
 #import "logger.h"
+#import "DarwinNotifications.h"
 
 @interface FloatingWindow ()
 
 // Main UI Components
 @property (nonatomic, strong) UIView *contentView;
-@property (nonatomic, strong) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic, strong, readwrite) RTCMTLVideoView *videoView;
-@property (nonatomic, strong) UIButton *toggleButton;
-@property (nonatomic, strong) UIButton *substitutionButton; // Botão para burlador
 @property (nonatomic, strong) UIImageView *iconView;
-@property (nonatomic, strong) NSTimer *previewUpdateTimer; // Timer para atualizar preview
-@property (nonatomic, strong) AVSampleBufferDisplayLayer *previewLayer; // Layer para mostrar frames exatos
 
 // State tracking
 @property (nonatomic, assign) CGPoint lastPosition;
-@property (nonatomic, assign) BOOL isPreviewActive;
 @property (nonatomic, assign) CGRect expandedFrame;
 @property (nonatomic, assign) CGRect minimizedFrame;
 @property (nonatomic, assign) BOOL isDragging;
@@ -63,7 +56,7 @@
         CGFloat expandedHeight = expandedWidth * 9 / 16 + 80; // Seu valor atual
         CGFloat xPosition = margin;
         CGFloat yPosition = (screenBounds.size.height - expandedHeight) / 2; // Centralizar verticalmente
-        self.expandedFrame = CGRectMake(
+        _expandedFrame = CGRectMake(
                                      xPosition,
                                      yPosition,
                                      expandedWidth,
@@ -72,7 +65,7 @@
         
         // Frame for minimized state (AssistiveTouch style)
         CGFloat minimizedSize = 50;
-        self.minimizedFrame = CGRectMake(
+        _minimizedFrame = CGRectMake(
                                          screenBounds.size.width - minimizedSize - 20,
                                          screenBounds.size.height * 0.4,
                                          minimizedSize,
@@ -80,27 +73,23 @@
                                          );
         
         // Initial state
-        self.frame = self.minimizedFrame;
-        self.windowState = FloatingWindowStateMinimized;
+        self.frame = _minimizedFrame;
+        _windowState = FloatingWindowStateMinimized;
         
-        self.isPreviewActive = NO;
-        self.isReceivingFrames = NO;
-        self.isSubstitutionActive = NO;
+        _isPreviewActive = NO;
+        _isReceivingFrames = NO;
+        _isSubstitutionActive = NO;
         
         // Setup UI components
         [self setupUI];
         [self setupGestureRecognizers];
         
         // Update appearance for initial state
-        [self updateAppearanceForState:self.windowState];
+        [self updateAppearanceForState:_windowState];
         
         writeLog(@"[FloatingWindow] Initialized in minimized state");
     }
     return self;
-}
-
-- (void)dealloc {
-    [self stopPreviewUpdateTimer];
 }
 
 #pragma mark - UI Setup
@@ -128,20 +117,12 @@
 }
 
 - (void)setupVideoView {
-    // Use RTCMTLVideoView for efficient video rendering
+    // Use RTCMTLVideoView for WebRTC video rendering
     self.videoView = [[RTCMTLVideoView alloc] init];
     self.videoView.translatesAutoresizingMaskIntoConstraints = NO;
     self.videoView.delegate = self;
     self.videoView.backgroundColor = [UIColor blackColor];
     [self.contentView addSubview:self.videoView];
-    
-    // Configurar AVSampleBufferDisplayLayer para mostrar frames exatos
-    self.previewLayer = [[AVSampleBufferDisplayLayer alloc] init];
-    self.previewLayer.backgroundColor = [UIColor clearColor].CGColor;
-    self.previewLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-    
-    // Adicionar a layer de amostra como sublayer da camada principal
-    [self.videoView.layer addSublayer:self.previewLayer];
     
     // Calcular altura para manter proporção 16:9
     CGFloat videoHeight = (self.expandedFrame.size.width * 9.0 / 16.0) + 20;
@@ -174,7 +155,7 @@
     self.toggleButton.backgroundColor = [UIColor systemBlueColor];
     self.toggleButton.layer.cornerRadius = 10;
     self.toggleButton.enabled = NO;
-    self.toggleButton.alpha = 1.0;
+    self.toggleButton.alpha = 0.5;
     [self.toggleButton addTarget:self action:@selector(togglePreview:) forControlEvents:UIControlEventTouchUpInside];
     [buttonContainer addSubview:self.toggleButton];
     
@@ -263,76 +244,6 @@
     [tapGesture requireGestureRecognizerToFail:panGesture];
 }
 
-#pragma mark - Preview Update Timer
-
-- (void)startPreviewUpdateTimer {
-    [self stopPreviewUpdateTimer];
-    
-    // Criar um timer que atualiza o preview a cada 1/30 segundos (30fps)
-    self.previewUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:1.0/30.0
-                                                              repeats:YES
-                                                                block:^(NSTimer * _Nonnull timer) {
-        [self updatePreviewFrame];
-    }];
-}
-
-- (void)stopPreviewUpdateTimer {
-    if (self.previewUpdateTimer) {
-        [self.previewUpdateTimer invalidate];
-        self.previewUpdateTimer = nil;
-    }
-}
-
-- (void)updatePreviewFrame {
-    // Apenas atualiza se o preview estiver ativo
-    if (!self.isPreviewActive || !self.webRTCManager || !self.isSubstitutionActive) {
-        return;
-    }
-    
-    // Verificar se previewLayer está configurado corretamente
-    if (!self.previewLayer) {
-        writeLog(@"[FloatingWindow] PreviewLayer não configurado");
-        return;
-    }
-    
-    // Atualizar o tamanho do previewLayer para corresponder à vista de vídeo
-    if (!CGRectEqualToRect(self.previewLayer.frame, self.videoView.layer.bounds)) {
-        self.previewLayer.frame = self.videoView.layer.bounds;
-    }
-    
-    // Obter um frame do WebRTC para visualização usando o mesmo método que será usado para substituição
-    CMSampleBufferRef sampleBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
-    
-    if (sampleBuffer) {
-        // Se tiver vídeo e o preview layer estiver pronto para receber mais
-        if (self.previewLayer.readyForMoreMediaData) {
-            // Limpar qualquer buffer anterior
-            [self.previewLayer flush];
-            
-            // Adicionar o novo buffer
-            [self.previewLayer enqueueSampleBuffer:sampleBuffer];
-            
-            // Incrementar contador de frames atualizado
-            static int frameCount = 0;
-            if (++frameCount % 100 == 0) {
-                writeLog(@"[FloatingWindow] Preview atualizado com frame #%d", frameCount);
-            }
-        }
-        
-        // Liberar o buffer após uso
-        CFRelease(sampleBuffer);
-    } else {
-        // Controlar frequência de logs de erro
-        static NSTimeInterval lastLogTime = 0;
-        NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
-        
-        if (currentTime - lastLogTime > 2.0) { // Log a cada 2 segundos em vez de cada frame
-            writeLog(@"[FloatingWindow] Não foi possível obter frame para preview");
-            lastLogTime = currentTime;
-        }
-    }
-}
-
 #pragma mark - Public Methods
 
 - (void)show {
@@ -363,12 +274,15 @@
 }
 
 - (void)hide {
-    // Parar qualquer preview ou substituição
-    [self stopPreview];
+    // Stop preview if active
+    if (self.isPreviewActive) {
+        [self stopPreview];
+    }
     
-    // Se o burlador estiver ativo, desative-o
+    // Set substitution inactive
     if (self.isSubstitutionActive) {
-        [self setSubstitutionActive:NO];
+        // Use toggleSubstitution to properly handle the state change
+        [self toggleSubstitution:nil];
     }
     
     // Animate exit
@@ -383,267 +297,61 @@
     writeLog(@"[FloatingWindow] Window hidden");
 }
 
-- (void)togglePreview:(UIButton *)sender {
-    if (self.isPreviewActive) {
-        [self stopPreview];
-    } else {
-        // Verificamos primeiro se o burlador está ativo
-        if (!self.isSubstitutionActive) {
-            writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
-            return;
-        }
-        [self startPreview];
-        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames - togglePreview");
-    }
-}
-
-- (void)toggleSubstitution:(UIButton *)sender {
-    if (self.isSubstitutionActive) {
-        [self setSubstitutionActive:NO];
-    } else {
-        [self setSubstitutionActive:YES];
-    }
-}
-
-- (void)setSubstitutionActive:(BOOL)active {
-    // Se não há alteração de estado, retorna
-    if (self.isSubstitutionActive == active) return;
-    
-    self.isSubstitutionActive = active;
-    
-    if (active) {
-        // Ativar burlador
-        [self.substitutionButton setTitle:@"Desativar Burlador" forState:UIControlStateNormal];
-        self.substitutionButton.backgroundColor = [UIColor redColor];
-        
-        // Habilitar botão de preview
-        self.toggleButton.enabled = YES;
-        self.toggleButton.alpha = 1.0;
-        
-        writeLog(@"[FloatingWindow] Burlador ativado");
-        
-        // Se WebRTCManager está disponível, ative a substituição
-        if (self.webRTCManager) {
-            // Redefinir flag de desconexão solicitada pelo usuário
-            [self.webRTCManager setUserRequestedDisconnect:NO];
-            
-            [self.webRTCManager setSubstitutionActive:YES];
-            
-            // Se o WebRTC não estiver conectado, inicie a conexão
-            if (self.webRTCManager.state == WebRTCManagerStateDisconnected ||
-                self.webRTCManager.state == WebRTCManagerStateError) {
-                [self.webRTCManager startWebRTC];
-            }
-        } else {
-            writeLog(@"[FloatingWindow] WebRTCManager não inicializado");
-        }
-    } else {
-        // Desativar burlador
-        [self.substitutionButton setTitle:@"Ativar Burlador" forState:UIControlStateNormal];
-        self.substitutionButton.backgroundColor = [UIColor systemBlueColor];
-        
-        // Desabilitar botão de preview e parar preview se estiver ativo
-        if (self.isPreviewActive) {
-            [self stopPreview];
-        }
-        self.toggleButton.enabled = NO;
-        self.toggleButton.alpha = 1.0;
-        
-        writeLog(@"[FloatingWindow] Burlador desativado");
-        
-        // Desativar substituição no WebRTCManager e desconectar completamente
-        if (self.webRTCManager) {
-            [self.webRTCManager setSubstitutionActive:NO];
-            
-            // Desconectar WebRTC completamente quando o burlador for desativado
-            if (self.webRTCManager.state != WebRTCManagerStateDisconnected) {
-                // Marcar como solicitação do usuário
-                [self.webRTCManager setUserRequestedDisconnect:YES];
-                
-                // Enviar bye para desconectar de forma adequada
-                [self.webRTCManager sendByeMessage];
-                
-                // Desativar após pequeno atraso para garantir que a mensagem seja enviada
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    [self.webRTCManager stopWebRTC:YES];
-                });
-            }
-        }
-    }
-    
-    // Atualizar o ícone na versão minimizada
-    [self updateMinimizedIconWithState];
-}
-
-- (void)startPreview {
-    // Verificar se o WebRTCManager está presente e se o burlador está ativo
-    if (!self.webRTCManager) {
-        writeLog(@"[FloatingWindow] WebRTCManager não inicializado");
-        return;
-    }
-    
-    // Não permitir ativar preview sem o burlador ativo
-    if (!self.isSubstitutionActive) {
-        writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
-        return;
-    }
-    
-    self.isPreviewActive = YES;
-    [self.toggleButton setTitle:@"Desativar Preview" forState:UIControlStateNormal];
-    self.toggleButton.backgroundColor = [UIColor redColor]; // Vermelho quando ativo
-    
-    // Mostrar indicador de carregamento
-    [self.loadingIndicator startAnimating];
-    
-    // Garantir que o previewLayer seja visível e esteja acima de qualquer outra camada
-    if (self.previewLayer.superlayer != self.videoView.layer) {
-        [self.videoView.layer addSublayer:self.previewLayer];
-    }
-    
-    self.previewLayer.frame = self.videoView.layer.bounds;
-    self.previewLayer.hidden = NO;
-    
-    // Iniciar timer para atualizar o preview
-    [self startPreviewUpdateTimer];
-    
-    // Expandir se estiver minimizado
-    if (self.windowState == FloatingWindowStateMinimized) {
-        [self setWindowState:FloatingWindowStateExpanded];
-    }
-    
-    // Parar indicador de carregamento quando o preview estiver ativo
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self.loadingIndicator stopAnimating];
-    });
-}
-
-- (void)stopPreview {
-    if (!self.isPreviewActive) return;
-    
-    self.isPreviewActive = NO;
-    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
-    self.toggleButton.backgroundColor = [UIColor systemBlueColor]; // Azul quando inativo
-    
-    // Parar indicador de carregamento
-    [self.loadingIndicator stopAnimating];
-    
-    // Parar o timer de atualização
-    [self stopPreviewUpdateTimer];
-    
-    // Limpar e ocultar o previewLayer
-    if (self.previewLayer) {
-        [self.previewLayer flush];
-        self.previewLayer.hidden = YES;
-    }
-    
-    // NÃO desconectar WebRTC se o burlador estiver ativo
-    // Isso garante que a substituição continue funcionando mesmo sem preview
-}
-
 - (void)updateConnectionStatus:(NSString *)status {
-    // Atualizar estado visual (cor do ícone quando minimizado)
-    [self updateMinimizedIconWithState];
+    writeLog(@"[FloatingWindow] Connection status: %@", status);
     
-    // Verificar se houve erro fatal de conexão
-    // Modificado para só desativar o burlador em casos de erros mais severos, não timeouts
-    if ([status containsString:@"Erro fatal"] || [status containsString:@"Erro crítico"]) {
-        // Em caso de erro fatal, desativar automaticamente o burlador
-        if (self.isSubstitutionActive) {
-            writeLog(@"[FloatingWindow] Erro fatal de conexão detectado, desativando burlador");
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self setSubstitutionActive:NO];
-            });
-        }
-    }
-    // Para erros de timeout ou conexão, apenas mostrar indicador visual, mas não desativar
-    else if ([status containsString:@"Erro"]) {
-        writeLog(@"[FloatingWindow] Erro de conexão detectado, tentando recuperar...");
-        // Atualiza apenas UI, não desativa burlador
-    }
-}
-
-#pragma mark - WebRTCManagerDelegate
-
-- (void)didUpdateConnectionStatus:(NSString *)status {
+    // Update UI based on connection status
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self updateConnectionStatus:status];
-    });
-}
-
-- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        writeLog(@"[FloatingWindow] Recebido videoTrack do WebRTC");
-        
-        // Não vamos mais adicionar o videoTrack diretamente ao videoView
-        // Em vez disso, usaremos o AVSampleBufferDisplayLayer para mostrar os frames
-        // processados pelo WebRTCManager, tornando o preview idêntico à substituição
-        
-        // Parar indicador de carregamento
-        [self.loadingIndicator stopAnimating];
-        
-        // Atualizar estado
-        self.isReceivingFrames = YES;
-    });
-}
-
-- (void)didChangeConnectionState:(WebRTCManagerState)state {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Atualizar UI baseado no estado da conexão
-        switch (state) {
-            case WebRTCManagerStateConnecting:
-                [self.loadingIndicator startAnimating];
-                break;
-                
-            case WebRTCManagerStateConnected:
-                // Expandir se estiver minimizado e o preview estiver ativo
-                if (self.windowState == FloatingWindowStateMinimized && self.isPreviewActive) {
-                    [self setWindowState:FloatingWindowStateExpanded];
-                }
-                [self.loadingIndicator stopAnimating];
-                break;
-                
-            case WebRTCManagerStateError:
-                self.isReceivingFrames = NO;
-                [self.loadingIndicator stopAnimating];
-                
-                // Se o preview estiver ativo, desativá-lo
-                if (self.isPreviewActive) {
-                    self.isPreviewActive = NO;
-                    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
-                    self.toggleButton.backgroundColor = [UIColor systemBlueColor];
-                    [self stopPreviewUpdateTimer];
-                }
-                
-                // MODIFICADO: Não desativar o burlador automaticamente em erros,
-                // pois pode ser apenas um timeout temporário. O WebRTCManager tentará reconectar.
-                // Apenas apresentar feedback visual.
-                break;
-                
-            case WebRTCManagerStateDisconnected:
-                self.isReceivingFrames = NO;
-                [self.loadingIndicator stopAnimating];
-                
-                // Se o preview estiver ativo, desativá-lo
-                if (self.isPreviewActive) {
-                    self.isPreviewActive = NO;
-                    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
-                    self.toggleButton.backgroundColor = [UIColor systemBlueColor];
-                    [self stopPreviewUpdateTimer];
-                }
-                
-                // Se for desconexão explícita (não temporária), desativar burlador
-                if (self.isSubstitutionActive && self.webRTCManager.userRequestedDisconnect) {
-                    [self setSubstitutionActive:NO];
-                }
-                break;
-                
-            default:
-                break;
+        // For serious error messages, consider showing an alert
+        if ([status containsString:@"Erro"] || [status containsString:@"falha"]) {
+            UIAlertController *alert = [UIAlertController
+                                       alertControllerWithTitle:@"Erro de Conexão"
+                                       message:status
+                                       preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            
+            UIViewController *rootVC = self.rootViewController;
+            if (rootVC) {
+                [rootVC presentViewController:alert animated:YES completion:nil];
+            }
         }
         
-        // Atualizar ícone minimizado
+        // Update minimized icon state if needed
         [self updateMinimizedIconWithState];
     });
+}
+
+- (void)updateMinimizedIconWithState {
+    UIImage *image = nil;
+    
+    // A cor e ícone mudam baseado apenas no estado do burlador, não do preview
+    if (@available(iOS 13.0, *)) {
+        if (self.isSubstitutionActive) {
+            // Câmera com cor verde quando burlador ativo
+            image = [UIImage systemImageNamed:@"video.fill"];
+            self.iconView.tintColor = [UIColor greenColor];
+        } else {
+            // Câmera com slash e cor vermelha quando burlador desativado
+            image = [UIImage systemImageNamed:@"video.slash"];
+            self.iconView.tintColor = [UIColor redColor];
+        }
+    }
+    
+    if (!image) {
+        // Fallback para iOS < 13
+        CGSize iconSize = CGSizeMake(20, 20);
+        UIGraphicsBeginImageContextWithOptions(iconSize, NO, 0);
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        if (context) {
+            CGContextSetFillColorWithColor(context,
+                self.isSubstitutionActive ? [UIColor greenColor].CGColor : [UIColor redColor].CGColor);
+            CGContextFillEllipseInRect(context, CGRectMake(0, 0, iconSize.width, iconSize.height));
+            image = UIGraphicsGetImageFromCurrentImageContext();
+        }
+        UIGraphicsEndImageContext();
+    }
+    
+    self.iconView.image = image;
 }
 
 #pragma mark - State Management
@@ -741,45 +449,7 @@
         
         // Fundo escuro
         self.backgroundColor = [UIColor colorWithRed:0.1 green:0.1 blue:0.1 alpha:0.9];
-    } completion:^(BOOL finished) {
-        // Atualizar frame do previewLayer para o novo tamanho
-        if (self.previewLayer) {
-            self.previewLayer.frame = self.videoView.layer.bounds;
-        }
-    }];
-}
-
-- (void)updateMinimizedIconWithState {
-    UIImage *image = nil;
-    
-    // A cor e ícone mudam baseado apenas no estado do burlador, não do preview
-    if (@available(iOS 13.0, *)) {
-        if (self.isSubstitutionActive) {
-            // Câmera com cor verde quando burlador ativo
-            image = [UIImage systemImageNamed:@"video.fill"];
-            self.iconView.tintColor = [UIColor greenColor];
-        } else {
-            // Câmera com slash e cor vermelha quando burlador desativado
-            image = [UIImage systemImageNamed:@"video.slash"];
-            self.iconView.tintColor = [UIColor redColor];
-        }
-    }
-    
-    if (!image) {
-        // Fallback para iOS < 13
-        CGSize iconSize = CGSizeMake(20, 20);
-        UIGraphicsBeginImageContextWithOptions(iconSize, NO, 0);
-        CGContextRef context = UIGraphicsGetCurrentContext();
-        if (context) {
-            CGContextSetFillColorWithColor(context,
-                self.isSubstitutionActive ? [UIColor greenColor].CGColor : [UIColor redColor].CGColor);
-            CGContextFillEllipseInRect(context, CGRectMake(0, 0, iconSize.width, iconSize.height));
-            image = UIGraphicsGetImageFromCurrentImageContext();
-        }
-        UIGraphicsEndImageContext();
-    }
-    
-    self.iconView.image = image;
+    } completion:nil];
 }
 
 #pragma mark - Gesture Handlers
@@ -867,13 +537,80 @@
             
             // Update minimized icon state
             [self updateMinimizedIconWithState];
-            
-            // Atualizar tamanho do previewLayer
-            if (self.previewLayer) {
-                self.previewLayer.frame = self.videoView.layer.bounds;
-            }
         });
     }
+}
+
+#pragma mark - Preview Methods
+
+- (void)togglePreview:(UIButton *)sender {
+    if (self.isPreviewActive) {
+        [self stopPreview];
+    } else {
+        [self startPreview];
+    }
+}
+
+- (void)startPreview {
+    // Verificar se o burlador está ativo
+    if (!self.isSubstitutionActive) {
+        writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
+        return;
+    }
+    
+    self.isPreviewActive = YES;
+    [self.toggleButton setTitle:@"Desativar Preview" forState:UIControlStateNormal];
+    self.toggleButton.backgroundColor = [UIColor redColor]; // Vermelho quando ativo
+    
+    // Mostrar indicador de carregamento
+    [self.loadingIndicator startAnimating];
+    
+    // Expandir se estiver minimizado
+    if (self.windowState == FloatingWindowStateMinimized) {
+        [self setWindowState:FloatingWindowStateExpanded];
+    }
+    
+    // Parar indicador de carregamento quando o preview estiver ativo
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self.loadingIndicator stopAnimating];
+    });
+    
+    writeLog(@"[FloatingWindow] Preview ativado");
+}
+
+- (void)stopPreview {
+    if (!self.isPreviewActive) return;
+    
+    self.isPreviewActive = NO;
+    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
+    self.toggleButton.backgroundColor = [UIColor systemBlueColor]; // Azul quando inativo
+    
+    // Parar indicador de carregamento
+    [self.loadingIndicator stopAnimating];
+    
+    writeLog(@"[FloatingWindow] Preview desativado");
+}
+
+// Este método é chamado pelo WebRTCFrameProvider quando recebe uma nova faixa de vídeo
+- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
+    writeLog(@"[FloatingWindow] Faixa de vídeo recebida");
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Configurar o videoView se existir
+        if (self.videoView) {
+            // Adicionar o renderer para o videoView
+            [videoTrack addRenderer:self.videoView];
+        }
+        
+        // Marcar que estamos recebendo frames
+        self.isReceivingFrames = YES;
+        
+        // Parar indicador de carregamento
+        [self.loadingIndicator stopAnimating];
+        
+        // Atualizar ícone minimizado
+        [self updateMinimizedIconWithState];
+    });
 }
 
 @end

@@ -1,22 +1,1051 @@
 #import "FloatingWindow.h"
-#import "WebRTCManager.h"
-#import <UIKit/UIKit.h>
-#import <AVFoundation/AVFoundation.h>
 #import "logger.h"
 #import "DarwinNotifications.h"
+#import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
+#import <CoreMedia/CoreMedia.h>
+#import <WebRTC/WebRTC.h>
 
-#import <objc/runtime.h>
+// Declaração da classe WebRTCFrameProvider
+@interface WebRTCFrameProvider : NSObject <RTCVideoRenderer, RTCPeerConnectionDelegate, NSURLSessionWebSocketDelegate>
++ (instancetype)sharedInstance;
+- (void)startWebRTC;
+- (void)stopWebRTC;
+- (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew;
+- (void)setSubstitutionActive:(BOOL)active;
+- (BOOL)isConnected;
+- (BOOL)isReceivingFrames;
+- (void)addVideoTrack:(RTCVideoTrack *)videoTrack;
 
-// Variável global para a instância de FloatingWindow
+@property(nonatomic, assign) BOOL isSubstitutionActive;
+@property(nonatomic, strong) RTCPeerConnection *peerConnection;
+@property(nonatomic, strong) RTCPeerConnectionFactory *factory;
+@property(nonatomic, strong) RTCVideoTrack *videoTrack;
+@property(nonatomic, strong) NSURLSessionWebSocketTask *webSocketTask;
+@property(nonatomic, strong) NSURLSession *session;
+@property(nonatomic, strong) NSString *roomId;
+@property(nonatomic, assign) BOOL hasJoinedRoom;
+@property(nonatomic, assign) RTCVideoRotation lastRotation;
+@property(nonatomic, weak) FloatingWindow *floatingWindow; // Referência fraca para a FloatingWindow
+@end
+
+// Variáveis globais para gerenciamento de recursos
 static FloatingWindow *g_floatingWindow = nil;
-
-// Camadas para substituição visual
+static WebRTCFrameProvider *g_frameProvider = nil;
 static AVSampleBufferDisplayLayer *g_previewLayer = nil;
 static CALayer *g_maskLayer = nil;
-
-// Variáveis globais adaptadas do baseSubstituicao.txt
 static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationPortrait;
 static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait;
+static NSString *g_serverIP = @"192.168.0.178";
+
+#pragma mark - WebRTCFrameProvider Implementation
+
+@implementation WebRTCFrameProvider {
+    CMSampleBufferRef _currentFrameBuffer;
+    dispatch_queue_t _processingQueue;
+    NSLock *_frameLock;
+    RTCVideoFrame *_lastCapturedFrame;
+    id<RTCI420Buffer> _lastI420Buffer;
+    RTCCVPixelBuffer *_lastCVPixelBuffer;
+    NSTimeInterval _lastFrameTime;
+    int _frameCounter;
+    NSTimeInterval _lastErrorLogTime;
+    BOOL _hasLoggedFrameError;
+}
+
++ (instancetype)sharedInstance {
+    static WebRTCFrameProvider *instance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[self alloc] init];
+    });
+    return instance;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _isSubstitutionActive = NO;
+        _roomId = @"ios-camera";
+        _hasJoinedRoom = NO;
+        _currentFrameBuffer = NULL;
+        _lastCapturedFrame = nil;
+        _lastI420Buffer = nil;
+        _lastCVPixelBuffer = nil;
+        _lastFrameTime = 0;
+        _frameCounter = 0;
+        _hasLoggedFrameError = NO;
+        _lastErrorLogTime = 0;
+        _lastRotation = RTCVideoRotation_0;
+        _frameLock = [[NSLock alloc] init];
+        _processingQueue = dispatch_queue_create("com.webrtc.frameProvider", DISPATCH_QUEUE_SERIAL);
+        
+        writeLog(@"[WebRTCFrameProvider] Inicializado");
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [self stopWebRTC];
+    [self releaseCurrentFrame];
+}
+
+- (void)releaseCurrentFrame {
+    [_frameLock lock];
+    if (_currentFrameBuffer) {
+        CFRelease(_currentFrameBuffer);
+        _currentFrameBuffer = NULL;
+    }
+    [_frameLock unlock];
+    
+    _lastCapturedFrame = nil;
+    _lastI420Buffer = nil;
+    _lastCVPixelBuffer = nil;
+}
+
+#pragma mark - WebRTC Methods
+
+- (void)startWebRTC {
+    if (self.peerConnection) {
+        writeLog(@"[WebRTCFrameProvider] Já existe uma conexão ativa");
+        return;
+    }
+    
+    writeLog(@"[WebRTCFrameProvider] Iniciando conexão WebRTC");
+    
+    // Atualização de status para a UI
+    if (self.floatingWindow) {
+        [self.floatingWindow updateConnectionStatus:@"Conectando..."];
+    }
+    
+    // Configuração do RTCPeerConnection
+    RTCConfiguration *config = [[RTCConfiguration alloc] init];
+    config.iceServers = @[
+        [[RTCIceServer alloc] initWithURLStrings:@[@"stun:stun.l.google.com:19302"]]
+    ];
+    
+    RTCMediaConstraints *constraints = [[RTCMediaConstraints alloc]
+        initWithMandatoryConstraints:@{}
+        optionalConstraints:@{}];
+    
+    // Criar fábricas de codec com suporte a hardware
+    RTCDefaultVideoDecoderFactory *decoderFactory = [[RTCDefaultVideoDecoderFactory alloc] init];
+    RTCDefaultVideoEncoderFactory *encoderFactory = [[RTCDefaultVideoEncoderFactory alloc] init];
+    
+    // Priorizar H.264 para melhor desempenho
+    if (encoderFactory.supportedCodecs.count > 0) {
+        NSMutableArray<RTCVideoCodecInfo *> *supportedCodecs = [NSMutableArray array];
+        
+        // Adicionar H.264 primeiro
+        for (RTCVideoCodecInfo *codec in encoderFactory.supportedCodecs) {
+            if ([codec.name isEqualToString:@"H264"]) {
+                [supportedCodecs addObject:codec];
+            }
+        }
+        
+        // Adicionar os demais codecs
+        for (RTCVideoCodecInfo *codec in encoderFactory.supportedCodecs) {
+            if (![codec.name isEqualToString:@"H264"]) {
+                [supportedCodecs addObject:codec];
+            }
+        }
+        
+        if (supportedCodecs.count > 0) {
+            encoderFactory.preferredCodec = supportedCodecs.firstObject;
+        }
+    }
+    
+    // Criar factory e peer connection
+    self.factory = [[RTCPeerConnectionFactory alloc]
+        initWithEncoderFactory:encoderFactory
+        decoderFactory:decoderFactory];
+    
+    self.peerConnection = [self.factory peerConnectionWithConfiguration:config
+                                                           constraints:constraints
+                                                              delegate:self];
+    
+    if (self.peerConnection) {
+        writeLog(@"[WebRTCFrameProvider] PeerConnection criado com sucesso");
+        
+        // Iniciar conexão WebSocket
+        [self connectWebSocket];
+    } else {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar PeerConnection");
+        if (self.floatingWindow) {
+            [self.floatingWindow updateConnectionStatus:@"Falha ao criar conexão"];
+        }
+    }
+}
+
+- (void)stopWebRTC {
+    // Liberar recursos de WebRTC
+    writeLog(@"[WebRTCFrameProvider] Parando conexão WebRTC");
+    
+    // Atualização de status para a UI
+    if (self.floatingWindow) {
+        [self.floatingWindow updateConnectionStatus:@"Desconectando..."];
+    }
+    
+    // Enviar mensagem de despedida se estiver em uma sala
+    if (self.webSocketTask && self.hasJoinedRoom) {
+        [self sendByeMessage];
+    }
+    
+    // Fechar conexão WebSocket
+    if (self.webSocketTask) {
+        [self.webSocketTask cancel];
+        self.webSocketTask = nil;
+    }
+    
+    if (self.session) {
+        [self.session invalidateAndCancel];
+        self.session = nil;
+    }
+    
+    // Fechar peer connection
+    if (self.peerConnection) {
+        [self.peerConnection close];
+        self.peerConnection = nil;
+    }
+    
+    if (self.videoTrack) {
+        [self.videoTrack removeRenderer:self];
+        self.videoTrack = nil;
+    }
+    
+    self.factory = nil;
+    self.hasJoinedRoom = NO;
+    
+    // Liberar buffer de frame atual
+    [self releaseCurrentFrame];
+    
+    // Atualização final de status
+    if (self.floatingWindow) {
+        [self.floatingWindow updateConnectionStatus:@"Desconectado"];
+    }
+}
+
+- (void)connectWebSocket {
+    writeLog(@"[WebRTCFrameProvider] Conectando ao servidor WebSocket");
+    
+    NSString *urlString = [NSString stringWithFormat:@"ws://%@:8080", g_serverIP];
+    NSURL *url = [NSURL URLWithString:urlString];
+    
+    if (!url) {
+        writeLog(@"[WebRTCFrameProvider] URL inválida");
+        if (self.floatingWindow) {
+            [self.floatingWindow updateConnectionStatus:@"URL inválida"];
+        }
+        return;
+    }
+    
+    // Configuração de timeout para conexões em rede local
+    NSURLSessionConfiguration *sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
+    sessionConfig.timeoutIntervalForRequest = 30.0;
+    sessionConfig.timeoutIntervalForResource = 60.0;
+    
+    if (self.session) {
+        [self.session invalidateAndCancel];
+    }
+    
+    self.session = [NSURLSession sessionWithConfiguration:sessionConfig
+                                                 delegate:self
+                                            delegateQueue:[NSOperationQueue mainQueue]];
+    
+    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+    self.webSocketTask = [self.session webSocketTaskWithRequest:request];
+    
+    [self receiveWebSocketMessage];
+    [self.webSocketTask resume];
+    
+    // Configurar timer para keepalive (opcional)
+    [self setupKeepAliveTimer];
+}
+
+- (void)setupKeepAliveTimer {
+    // Implementar se necessário para manter a conexão WebSocket ativa
+}
+
+- (void)sendWebSocketMessage:(NSDictionary *)message {
+    if (!self.webSocketTask || self.webSocketTask.state != NSURLSessionTaskStateRunning) {
+        writeLog(@"[WebRTCFrameProvider] WebSocket não está conectado");
+        return;
+    }
+    
+    NSError *error = nil;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:message
+                                                       options:0
+                                                         error:&error];
+    if (error) {
+        writeLog(@"[WebRTCFrameProvider] Erro ao serializar mensagem: %@", error);
+        return;
+    }
+    
+    NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+    [self.webSocketTask sendMessage:[[NSURLSessionWebSocketMessage alloc] initWithString:jsonString]
+                  completionHandler:^(NSError *error) {
+        if (error) {
+            writeLog(@"[WebRTCFrameProvider] Erro ao enviar mensagem: %@", error);
+        }
+    }];
+}
+
+- (void)receiveWebSocketMessage {
+    __weak typeof(self) weakSelf = self;
+    [self.webSocketTask receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage *message, NSError *error) {
+        if (error) {
+            writeLog(@"[WebRTCFrameProvider] Erro ao receber mensagem: %@", error);
+            
+            // Tentar reconectar se o erro for de rede e o WebSocket não estiver em execução
+            if (!weakSelf.webSocketTask || weakSelf.webSocketTask.state != NSURLSessionTaskStateRunning) {
+                if (weakSelf.isSubstitutionActive) {
+                    if (weakSelf.floatingWindow) {
+                        [weakSelf.floatingWindow updateConnectionStatus:@"Reconectando..."];
+                    }
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        [weakSelf connectWebSocket];
+                    });
+                }
+            }
+            return;
+        }
+        
+        if (message.type == NSURLSessionWebSocketMessageTypeString) {
+            NSData *jsonData = [message.string dataUsingEncoding:NSUTF8StringEncoding];
+            NSError *jsonError = nil;
+            NSDictionary *jsonDict = [NSJSONSerialization JSONObjectWithData:jsonData
+                                                                     options:0
+                                                                       error:&jsonError];
+            
+            if (jsonError) {
+                writeLog(@"[WebRTCFrameProvider] Erro ao analisar JSON: %@", jsonError);
+                return;
+            }
+            
+            // Processar a mensagem na thread principal
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf handleWebSocketMessage:jsonDict];
+            });
+        }
+        
+        // Continuar recebendo mensagens se o WebSocket estiver ativo
+        if (weakSelf.webSocketTask && weakSelf.webSocketTask.state == NSURLSessionTaskStateRunning) {
+            [weakSelf receiveWebSocketMessage];
+        }
+    }];
+}
+
+- (void)handleWebSocketMessage:(NSDictionary *)message {
+    NSString *type = message[@"type"];
+    
+    if (!type) {
+        writeLog(@"[WebRTCFrameProvider] Mensagem sem tipo recebida");
+        return;
+    }
+    
+    writeLog(@"[WebRTCFrameProvider] Mensagem recebida: %@", type);
+    
+    if ([type isEqualToString:@"offer"]) {
+        [self handleOfferMessage:message];
+    } else if ([type isEqualToString:@"answer"]) {
+        [self handleAnswerMessage:message];
+    } else if ([type isEqualToString:@"ice-candidate"]) {
+        [self handleCandidateMessage:message];
+    } else if ([type isEqualToString:@"user-joined"]) {
+        writeLog(@"[WebRTCFrameProvider] Usuário entrou na sala: %@", message[@"userId"]);
+    } else if ([type isEqualToString:@"user-left"]) {
+        writeLog(@"[WebRTCFrameProvider] Usuário saiu da sala: %@", message[@"userId"]);
+    }
+}
+
+- (void)handleOfferMessage:(NSDictionary *)message {
+    if (!self.peerConnection) {
+        writeLog(@"[WebRTCFrameProvider] Recebeu oferta sem PeerConnection");
+        return;
+    }
+    
+    NSString *sdp = message[@"sdp"];
+    if (!sdp) {
+        writeLog(@"[WebRTCFrameProvider] Oferta sem SDP");
+        return;
+    }
+    
+    RTCSessionDescription *description = [[RTCSessionDescription alloc] initWithType:RTCSdpTypeOffer sdp:sdp];
+    
+    __weak typeof(self) weakSelf = self;
+    [self.peerConnection setRemoteDescription:description completionHandler:^(NSError *error) {
+        if (error) {
+            writeLog(@"[WebRTCFrameProvider] Erro ao definir descrição remota: %@", error);
+            return;
+        }
+        
+        // Criar resposta
+        RTCMediaConstraints *constraints = [[RTCMediaConstraints alloc] initWithMandatoryConstraints:@{
+            @"OfferToReceiveVideo": @"true",
+            @"OfferToReceiveAudio": @"false"
+        } optionalConstraints:nil];
+        
+        [weakSelf.peerConnection answerForConstraints:constraints
+                                    completionHandler:^(RTCSessionDescription *sdp, NSError *error) {
+            if (error) {
+                writeLog(@"[WebRTCFrameProvider] Erro ao criar resposta: %@", error);
+                return;
+            }
+            
+            // Otimizar SDP para alta qualidade
+            NSString *optimizedSdp = [weakSelf optimizeSdpForHighQuality:sdp.sdp];
+            RTCSessionDescription *optimizedDescription = [[RTCSessionDescription alloc]
+                                                          initWithType:RTCSdpTypeAnswer
+                                                          sdp:optimizedSdp];
+            
+            [weakSelf.peerConnection setLocalDescription:optimizedDescription completionHandler:^(NSError *error) {
+                if (error) {
+                    writeLog(@"[WebRTCFrameProvider] Erro ao definir descrição local: %@", error);
+                    return;
+                }
+                
+                // Enviar resposta
+                [weakSelf sendWebSocketMessage:@{
+                    @"type": @"answer",
+                    @"sdp": optimizedDescription.sdp,
+                    @"roomId": weakSelf.roomId
+                }];
+                
+                writeLog(@"[WebRTCFrameProvider] Resposta enviada com sucesso");
+            }];
+        }];
+    }];
+}
+
+- (void)handleAnswerMessage:(NSDictionary *)message {
+    if (!self.peerConnection) {
+        writeLog(@"[WebRTCFrameProvider] Recebeu resposta sem PeerConnection");
+        return;
+    }
+    
+    NSString *sdp = message[@"sdp"];
+    if (!sdp) {
+        writeLog(@"[WebRTCFrameProvider] Resposta sem SDP");
+        return;
+    }
+    
+    RTCSessionDescription *description = [[RTCSessionDescription alloc] initWithType:RTCSdpTypeAnswer sdp:sdp];
+    
+    [self.peerConnection setRemoteDescription:description completionHandler:^(NSError *error) {
+        if (error) {
+            writeLog(@"[WebRTCFrameProvider] Erro ao definir descrição remota (resposta): %@", error);
+            return;
+        }
+        
+        writeLog(@"[WebRTCFrameProvider] Resposta processada com sucesso");
+    }];
+}
+
+- (void)handleCandidateMessage:(NSDictionary *)message {
+    if (!self.peerConnection) {
+        writeLog(@"[WebRTCFrameProvider] Recebeu candidato sem PeerConnection");
+        return;
+    }
+    
+    NSString *candidate = message[@"candidate"];
+    NSString *sdpMid = message[@"sdpMid"];
+    NSNumber *sdpMLineIndex = message[@"sdpMLineIndex"];
+    
+    if (!candidate || !sdpMid || !sdpMLineIndex) {
+        writeLog(@"[WebRTCFrameProvider] Candidato com parâmetros inválidos");
+        return;
+    }
+    
+    RTCIceCandidate *iceCandidate = [[RTCIceCandidate alloc] initWithSdp:candidate
+                                                           sdpMLineIndex:[sdpMLineIndex intValue]
+                                                                  sdpMid:sdpMid];
+    
+    [self.peerConnection addIceCandidate:iceCandidate completionHandler:^(NSError *error) {
+        if (error) {
+            writeLog(@"[WebRTCFrameProvider] Erro ao adicionar candidato Ice: %@", error);
+        }
+    }];
+}
+
+- (NSString *)optimizeSdpForHighQuality:(NSString *)sdp {
+    // Otimiza o SDP para streaming de alta qualidade em redes locais
+    if (!sdp) return nil;
+    
+    NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithArray:[sdp componentsSeparatedByString:@"\n"]];
+    BOOL inVideoSection = NO;
+    BOOL videoSectionModified = NO;
+    
+    for (NSInteger i = 0; i < lines.count; i++) {
+        NSString *line = lines[i];
+        
+        // Detectar seção de vídeo
+        if ([line hasPrefix:@"m=video"]) {
+            inVideoSection = YES;
+        } else if ([line hasPrefix:@"m="]) {
+            inVideoSection = NO;
+        }
+        
+        // Para seção de vídeo, adicionar configurações de alta qualidade
+        if (inVideoSection && [line hasPrefix:@"c="] && !videoSectionModified) {
+            // Alta taxa de bits para 4K
+            [lines insertObject:@"b=AS:20000" atIndex:i + 1];
+            i++; // Avançar índice
+            videoSectionModified = YES;
+        }
+        
+        // Configurar profile H.264 para 4K
+        if (inVideoSection && [line containsString:@"profile-level-id"] && [line containsString:@"H264"]) {
+            if (![line containsString:@"profile-level-id=640032"]) {
+                lines[i] = [line stringByReplacingOccurrencesOfString:@"profile-level-id=[0-9a-fA-F]+"
+                                                           withString:@"profile-level-id=640032"
+                                                              options:NSRegularExpressionSearch
+                                                                range:NSMakeRange(0, line.length)];
+            }
+        }
+    }
+    
+    return [lines componentsJoinedByString:@"\n"];
+}
+
+- (void)sendByeMessage {
+    if (!self.webSocketTask || !self.hasJoinedRoom) {
+        return;
+    }
+    
+    writeLog(@"[WebRTCFrameProvider] Enviando bye");
+    
+    [self sendWebSocketMessage:@{
+        @"type": @"bye",
+        @"roomId": self.roomId
+    }];
+}
+
+#pragma mark - RTCVideoRenderer Methods
+
+- (void)renderFrame:(RTCVideoFrame *)frame {
+    // Este método é chamado quando recebemos um novo frame do WebRTC
+    @synchronized(self) {
+        _lastCapturedFrame = frame;
+        _lastI420Buffer = nil;
+        _lastCVPixelBuffer = nil;
+        _lastFrameTime = CACurrentMediaTime();
+        _lastRotation = frame.rotation;
+        
+        // Salvar o formato do buffer para uso posterior
+        if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
+            _lastCVPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
+        } else {
+            // Converter para I420 se não for CVPixelBuffer
+            _lastI420Buffer = [frame.buffer toI420];
+        }
+    }
+}
+
+- (void)setSize:(CGSize)size {
+    // Método obrigatório do protocolo RTCVideoRenderer
+    // Não precisamos fazer nada aqui
+}
+
+- (BOOL)isConnected {
+    return (self.peerConnection != nil &&
+            self.webSocketTask != nil &&
+            self.webSocketTask.state == NSURLSessionTaskStateRunning);
+}
+
+- (BOOL)isReceivingFrames {
+    return (_lastCapturedFrame != nil &&
+            (CACurrentMediaTime() - _lastFrameTime) < 1.0); // Frame nos últimos 1s
+}
+
+- (void)addVideoTrack:(RTCVideoTrack *)videoTrack {
+    if (self.videoTrack) {
+        [self.videoTrack removeRenderer:self];
+    }
+    
+    self.videoTrack = videoTrack;
+    
+    if (videoTrack) {
+        [videoTrack addRenderer:self];
+        [videoTrack setIsEnabled:YES];
+        writeLog(@"[WebRTCFrameProvider] Video track adicionado: %@", videoTrack.trackId);
+        
+        // Notificar FloatingWindow que recebemos um videoTrack
+        if (self.floatingWindow) {
+            [self.floatingWindow didReceiveVideoTrack:videoTrack];
+        }
+    }
+}
+
+- (void)setSubstitutionActive:(BOOL)active {
+    if (_isSubstitutionActive != active) {
+        _isSubstitutionActive = active;
+        writeLog(@"[WebRTCFrameProvider] Substituição %@", active ? @"ativada" : @"desativada");
+        
+        // Registrar estado via Darwin Notifications
+        registerBurladorActive(active);
+        
+        // Iniciar ou parar WebRTC conforme o estado
+        if (active && !self.peerConnection) {
+            [self startWebRTC];
+        } else if (!active && self.peerConnection) {
+            [self stopWebRTC];
+        }
+        
+        // Resetar contadores de log
+        _hasLoggedFrameError = NO;
+    }
+}
+
+#pragma mark - Frame Processing Methods
+
+- (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
+    // Incrementar contador para controle de log
+    _frameCounter++;
+    BOOL shouldLog = (_frameCounter % 300 == 0);
+    
+    if (shouldLog) {
+        writeLog(@"[WebRTCFrameProvider] getCurrentFrame (#%d) - %@",
+                _frameCounter, self.isReceivingFrames ? @"recebendo frames" : @"sem frames");
+    }
+    
+    // Verificação primária: substituição deve estar ativa
+    if (!self.isSubstitutionActive) {
+        return originSampleBuffer;
+    }
+    
+    // Verificar se temos frames disponíveis
+    if (!self.isReceivingFrames) {
+        NSTimeInterval currentTime = CACurrentMediaTime();
+        if (!_hasLoggedFrameError || (currentTime - _lastErrorLogTime) > 2.0) {
+            writeLog(@"[WebRTCFrameProvider] Sem frames para substituição");
+            _hasLoggedFrameError = YES;
+            _lastErrorLogTime = currentTime;
+        }
+        return originSampleBuffer;
+    }
+    
+    // Obter o formato do buffer original
+    OSType targetFormat = kCVPixelFormatType_32BGRA; // Formato padrão
+    if (originSampleBuffer) {
+        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
+        if (imageBuffer) {
+            targetFormat = CVPixelBufferGetPixelFormatType(imageBuffer);
+            if (shouldLog) {
+                writeLog(@"[WebRTCFrameProvider] Formato do buffer original: %d", (int)targetFormat);
+            }
+        }
+    }
+    
+    // Obter dados do frame atual
+    RTCVideoFrame *frame;
+    RTCCVPixelBuffer *cvPixelBuffer;
+    id<RTCI420Buffer> i420Buffer;
+    
+    @synchronized(self) {
+        frame = _lastCapturedFrame;
+        cvPixelBuffer = _lastCVPixelBuffer;
+        i420Buffer = _lastI420Buffer;
+    }
+    
+    if (!frame) {
+        if (shouldLog) {
+            writeLog(@"[WebRTCFrameProvider] Nenhum frame disponível");
+        }
+        return originSampleBuffer;
+    }
+    
+    // Tentar usar CVPixelBuffer diretamente
+    if (cvPixelBuffer && cvPixelBuffer.pixelBuffer) {
+        CVPixelBufferRef pixelBuffer = cvPixelBuffer.pixelBuffer;
+        
+        // Verificar formato e converter se necessário
+        OSType currentFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+        
+        if (currentFormat != targetFormat) {
+            if (shouldLog) {
+                writeLog(@"[WebRTCFrameProvider] Convertendo formato de pixel %d para %d",
+                        (int)currentFormat, (int)targetFormat);
+            }
+            
+            // Converter para o formato alvo
+            CVPixelBufferRef convertedBuffer = [self convertPixelBuffer:pixelBuffer toFormat:targetFormat];
+            if (convertedBuffer) {
+                CMSampleBufferRef newBuffer = [self createSampleBufferFromPixelBuffer:convertedBuffer
+                                                                  originSampleBuffer:originSampleBuffer];
+                CVPixelBufferRelease(convertedBuffer);
+                return newBuffer;
+            }
+        } else {
+            // Mesmo formato, não precisa converter
+            return [self createSampleBufferFromPixelBuffer:pixelBuffer
+                                       originSampleBuffer:originSampleBuffer];
+        }
+    }
+    
+    // Se não conseguimos usar CVPixelBuffer, tentar com I420Buffer
+    if (i420Buffer) {
+        CVPixelBufferRef newPixelBuffer = [self createCVPixelBufferFromI420:i420Buffer format:targetFormat];
+        if (newPixelBuffer) {
+            CMSampleBufferRef resultBuffer = [self createSampleBufferFromPixelBuffer:newPixelBuffer
+                                                                 originSampleBuffer:originSampleBuffer];
+            CVPixelBufferRelease(newPixelBuffer);
+            return resultBuffer;
+        }
+    }
+    
+    // Se tudo falhar, retornar o buffer original
+    if (shouldLog) {
+        writeLog(@"[WebRTCFrameProvider] Falha na conversão, retornando buffer original");
+    }
+    return originSampleBuffer;
+}
+
+- (CVPixelBufferRef)convertPixelBuffer:(CVPixelBufferRef)sourceBuffer toFormat:(OSType)targetFormat {
+    if (!sourceBuffer) return NULL;
+    
+    size_t width = CVPixelBufferGetWidth(sourceBuffer);
+    size_t height = CVPixelBufferGetHeight(sourceBuffer);
+    
+    // Criar novo buffer no formato alvo
+    CVPixelBufferRef pixelBuffer = NULL;
+    NSDictionary *pixelAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey: @(targetFormat),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{},
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES
+    };
+    
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         width, height, targetFormat,
+                                         (__bridge CFDictionaryRef)pixelAttributes,
+                                         &pixelBuffer);
+    
+    if (status != kCVReturnSuccess || !pixelBuffer) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar pixel buffer: %d", (int)status);
+        return NULL;
+    }
+    
+    // Implementar conversão com base nos formatos de origem e destino
+    // (Podemos expandir isto para mais formatos conforme necessário)
+    
+    return pixelBuffer;
+}
+
+- (CVPixelBufferRef)createCVPixelBufferFromI420:(id<RTCI420Buffer>)i420Buffer format:(OSType)format {
+    if (!i420Buffer) return NULL;
+    
+    int width = i420Buffer.width;
+    int height = i420Buffer.height;
+    
+    // Criar CVPixelBuffer
+    CVPixelBufferRef pixelBuffer = NULL;
+    NSDictionary *pixelAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey: @(format),
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{},
+        (NSString*)kCVPixelBufferOpenGLCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferMetalCompatibilityKey: @YES
+    };
+    
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                         width, height, format,
+                                         (__bridge CFDictionaryRef)pixelAttributes,
+                                         &pixelBuffer);
+    
+    if (status != kCVReturnSuccess || !pixelBuffer) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar CVPixelBuffer: %d", (int)status);
+        return NULL;
+    }
+    
+    // Converter I420 para o formato desejado
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    
+    // Implementar conversão de acordo com o formato alvo
+    if (format == kCVPixelFormatType_32BGRA) {
+        // Converter I420 para BGRA
+        uint8_t *dst = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t dstStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        
+        const uint8_t *srcY = i420Buffer.dataY;
+        const uint8_t *srcU = i420Buffer.dataU;
+        const uint8_t *srcV = i420Buffer.dataV;
+        int srcStrideY = i420Buffer.strideY;
+        int srcStrideU = i420Buffer.strideU;
+        int srcStrideV = i420Buffer.strideV;
+        
+        // Conversão YUV -> RGB
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int yIndex = y * srcStrideY + x;
+                int uIndex = (y / 2) * srcStrideU + (x / 2);
+                int vIndex = (y / 2) * srcStrideV + (x / 2);
+                
+                int Y = srcY[yIndex];
+                int U = srcU[uIndex];
+                int V = srcV[vIndex];
+                
+                // Ajuste de escala YUV [16..235] -> [0..255]
+                Y = Y - 16;
+                U = U - 128;
+                V = V - 128;
+                
+                // Conversão YUV para RGB
+                int r = (298 * Y + 409 * V + 128) >> 8;
+                int g = (298 * Y - 100 * U - 208 * V + 128) >> 8;
+                int b = (298 * Y + 516 * U + 128) >> 8;
+                
+                // Clamp para [0..255]
+                r = r < 0 ? 0 : (r > 255 ? 255 : r);
+                g = g < 0 ? 0 : (g > 255 ? 255 : g);
+                b = b < 0 ? 0 : (b > 255 ? 255 : b);
+                
+                // Escrever no buffer BGRA
+                int destIdx = y * dstStride + x * 4;
+                dst[destIdx + 0] = b;  // B
+                dst[destIdx + 1] = g;  // G
+                dst[destIdx + 2] = r;  // R
+                dst[destIdx + 3] = 255; // A
+            }
+        }
+    }
+    else if (format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
+             format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+        // Converter I420 para NV12/NV21 (BiPlanar)
+        uint8_t *dstY = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
+        uint8_t *dstUV = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
+        
+        size_t dstStrideY = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
+        size_t dstStrideUV = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
+        
+        const uint8_t *srcY = i420Buffer.dataY;
+        const uint8_t *srcU = i420Buffer.dataU;
+        const uint8_t *srcV = i420Buffer.dataV;
+        int srcStrideY = i420Buffer.strideY;
+        int srcStrideU = i420Buffer.strideU;
+        int srcStrideV = i420Buffer.strideV;
+        
+        // Copiar plano Y
+        for (int y = 0; y < height; y++) {
+            memcpy(dstY + y * dstStrideY, srcY + y * srcStrideY, width);
+        }
+        
+        // Preencher plano UV intercalado
+        for (int y = 0; y < height / 2; y++) {
+            for (int x = 0; x < width / 2; x++) {
+                dstUV[y * dstStrideUV + x * 2] = srcU[y * srcStrideU + x];
+                dstUV[y * dstStrideUV + x * 2 + 1] = srcV[y * srcStrideV + x];
+            }
+        }
+    }
+    
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    return pixelBuffer;
+}
+
+- (CMSampleBufferRef)createSampleBufferFromPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                                    originSampleBuffer:(CMSampleBufferRef)originSampleBuffer {
+    if (!pixelBuffer) {
+        return NULL;
+    }
+    
+    // Criar descrição de formato
+    CMVideoFormatDescriptionRef videoInfo = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &videoInfo);
+    
+    if (status != noErr) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar descrição de formato: %d", (int)status);
+        return NULL;
+    }
+    
+    // Obter timing info do buffer original ou criar novo
+    CMSampleTimingInfo timing;
+    if (originSampleBuffer) {
+        timing.duration = CMSampleBufferGetDuration(originSampleBuffer);
+        timing.presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(originSampleBuffer);
+        timing.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originSampleBuffer);
+    } else {
+        timing.duration = CMTimeMake(1, 30);
+        timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 90000);
+        timing.decodeTimeStamp = kCMTimeInvalid;
+    }
+    
+    // Criar sample buffer
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        true,
+        NULL,
+        NULL,
+        videoInfo,
+        &timing,
+        &sampleBuffer);
+    
+    // Liberar recursos
+    CFRelease(videoInfo);
+    
+    if (status != noErr) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar sample buffer: %d", (int)status);
+        return NULL;
+    }
+    
+    return sampleBuffer;
+}
+
+#pragma mark - RTCPeerConnectionDelegate Methods
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeSignalingState:(RTCSignalingState)stateChanged {
+    writeLog(@"[WebRTCFrameProvider] Signaling state changed: %ld", (long)stateChanged);
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didAddStream:(RTCMediaStream *)stream {
+    writeLog(@"[WebRTCFrameProvider] Stream added: %@", stream.streamId);
+    
+    // Verificar se tem trilha de vídeo
+    if (stream.videoTracks.count > 0) {
+        RTCVideoTrack *videoTrack = stream.videoTracks[0];
+        [self addVideoTrack:videoTrack]; // Isso chamará didReceiveVideoTrack via floatingWindow
+    }
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveStream:(RTCMediaStream *)stream {
+    writeLog(@"[WebRTCFrameProvider] Stream removed: %@", stream.streamId);
+    
+    // Limpar o video track se foi removido
+    if ([stream.videoTracks containsObject:self.videoTrack]) {
+        [self.videoTrack removeRenderer:self];
+        self.videoTrack = nil;
+    }
+}
+
+- (void)peerConnectionShouldNegotiate:(RTCPeerConnection *)peerConnection {
+    writeLog(@"[WebRTCFrameProvider] Should negotiate");
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceConnectionState:(RTCIceConnectionState)newState {
+    writeLog(@"[WebRTCFrameProvider] ICE connection state changed: %ld", (long)newState);
+    
+    // Notificar a FloatingWindow sobre mudanças de estado
+    if (self.floatingWindow) {
+        NSString *status = nil;
+        
+        switch (newState) {
+            case RTCIceConnectionStateConnected:
+                status = @"Conectado";
+                break;
+            case RTCIceConnectionStateCompleted:
+                status = @"Conexão completa";
+                break;
+            case RTCIceConnectionStateDisconnected:
+                status = @"Desconectado";
+                break;
+            case RTCIceConnectionStateFailed:
+                status = @"Falha na conexão";
+                break;
+            case RTCIceConnectionStateClosed:
+                status = @"Conexão fechada";
+                break;
+            default:
+                break;
+        }
+        
+        if (status) {
+            [self.floatingWindow updateConnectionStatus:status];
+        }
+    }
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didChangeIceGatheringState:(RTCIceGatheringState)newState {
+    writeLog(@"[WebRTCFrameProvider] ICE gathering state changed: %ld", (long)newState);
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didGenerateIceCandidate:(RTCIceCandidate *)candidate {
+    writeLog(@"[WebRTCFrameProvider] ICE candidate generated");
+    
+    // Enviar o candidato ICE para o servidor
+    [self sendWebSocketMessage:@{
+        @"type": @"ice-candidate",
+        @"candidate": candidate.sdp,
+        @"sdpMid": candidate.sdpMid,
+        @"sdpMLineIndex": @(candidate.sdpMLineIndex),
+        @"roomId": self.roomId
+    }];
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didRemoveIceCandidates:(NSArray<RTCIceCandidate *> *)candidates {
+    writeLog(@"[WebRTCFrameProvider] ICE candidates removed: %lu", (unsigned long)candidates.count);
+}
+
+- (void)peerConnection:(RTCPeerConnection *)peerConnection didOpenDataChannel:(RTCDataChannel *)dataChannel {
+    writeLog(@"[WebRTCFrameProvider] Data channel opened: %@", dataChannel.label);
+}
+
+#pragma mark - NSURLSessionWebSocketDelegate Methods
+
+- (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didOpenWithProtocol:(NSString *)protocol {
+    writeLog(@"[WebRTCFrameProvider] WebSocket conectado");
+    
+    // Entrar na sala
+    self.roomId = self.roomId ?: @"ios-camera";
+    [self sendWebSocketMessage:@{
+        @"type": @"join",
+        @"roomId": self.roomId
+    }];
+    
+    self.hasJoinedRoom = YES;
+    writeLog(@"[WebRTCFrameProvider] Entrou na sala: %@", self.roomId);
+    
+    // Atualizar status na UI
+    if (self.floatingWindow) {
+        [self.floatingWindow updateConnectionStatus:@"Conectado ao servidor"];
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask didCloseWithCode:(NSURLSessionWebSocketCloseCode)closeCode reason:(NSData *)reason {
+    NSString *reasonStr = [[NSString alloc] initWithData:reason encoding:NSUTF8StringEncoding] ?: @"Desconhecido";
+    writeLog(@"[WebRTCFrameProvider] WebSocket fechou com código: %ld, motivo: %@", (long)closeCode, reasonStr);
+    
+    // Atualizar status na UI
+    if (self.floatingWindow) {
+        [self.floatingWindow updateConnectionStatus:@"WebSocket fechou"];
+    }
+    
+    // Tentar reconectar se a substituição estiver ativa
+    if (self.isSubstitutionActive) {
+        if (self.floatingWindow) {
+            [self.floatingWindow updateConnectionStatus:@"Reconectando..."];
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self connectWebSocket];
+        });
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    if (error) {
+        writeLog(@"[WebRTCFrameProvider] WebSocket falhou com erro: %@", error);
+        
+        // Atualizar status na UI
+        if (self.floatingWindow) {
+            [self.floatingWindow updateConnectionStatus:[NSString stringWithFormat:@"Erro: %@", error.localizedDescription]];
+        }
+        
+        // Tentar reconectar se a substituição estiver ativa
+        if (self.isSubstitutionActive) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if (self.floatingWindow) {
+                    [self.floatingWindow updateConnectionStatus:@"Reconectando..."];
+                }
+                [self connectWebSocket];
+            });
+        }
+    }
+}
+
+@end
+
+#pragma mark - Hook Implementations
 
 // Hook na layer de preview da câmera
 %hook AVCaptureVideoPreviewLayer
@@ -64,7 +1093,6 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
 }
 
 // Método adicionado para atualização contínua do preview
-// Baseado no código de referência do baseSubstituicao.txt
 %new
 -(void)step:(CADisplayLink *)sender {
     // Verificar estado do burlador via Darwin Notifications
@@ -145,99 +1173,22 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
             writeLog(@"[step] Orientação atualizada: %d", (int)g_photoOrientation);
         }
         
-        // Verificações para debug
-        static NSTimeInterval lastFrameDebugTime = 0;
-        if (currentTime - lastFrameDebugTime > 5.0) { // A cada 5 segundos
-            writeLog(@"[step] Status da camada: ready=%d, estado=%d, erro=%@",
-                     g_previewLayer.readyForMoreMediaData ? 1 : 0,
-                     (int)g_previewLayer.status,
-                     g_previewLayer.error ? [g_previewLayer.error localizedDescription] : @"nenhum");
-            lastFrameDebugTime = currentTime;
-        }
-        
         // Tentar obter frame para preview apenas se estiver pronto para receber mais dados
         if (g_previewLayer.readyForMoreMediaData) {
-            // Despachar para a thread principal
-            dispatch_async(dispatch_get_main_queue(), ^{
-                // Obtém o próximo frame na thread principal
-                CMSampleBufferRef newBuffer = NULL;
-                
-                if (g_floatingWindow && g_floatingWindow.webRTCManager) {
-                    writeLog(@"[step] Obtendo frame na thread principal");
-                    newBuffer = [g_floatingWindow.webRTCManager getCurrentFrame:nil forceReNew:YES];
-                    
-                    if (newBuffer != nil) {
-                        writeLog(@"[step] Frame obtido com sucesso na thread principal");
-                        // Voltar para a thread original para atualizar UI
-                        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
-                            [g_previewLayer flush];
-                            [g_previewLayer enqueueSampleBuffer:newBuffer];
-                            CFRelease(newBuffer);
-                            
-                            static int frameCount = 0;
-                            if (++frameCount % 100 == 0) {
-                                writeLog(@"[step] Frame #%d adicionado na thread principal", frameCount);
-                            }
-                        });
-                    } else {
-                        writeLog(@"[step] Falha ao obter frame mesmo na thread principal");
-                    }
-                }
-            });
             // Obtém o próximo frame
-            CMSampleBufferRef newBuffer = NULL;
+            CMSampleBufferRef newBuffer = [g_frameProvider getCurrentFrame:nil forceReNew:YES];
             
-            // Tenta obter frame
-            if (g_floatingWindow && g_floatingWindow.webRTCManager) {
-                // Tente com ambos os parâmetros como nil e false para ver se faz diferença
-                newBuffer = [g_floatingWindow.webRTCManager getCurrentFrame:nil forceReNew:NO];
-                
-                if (!newBuffer) {
-                    writeLog(@"[step] Primeira tentativa falhou, tentando com forceReNew:YES");
-                    newBuffer = [g_floatingWindow.webRTCManager getCurrentFrame:nil forceReNew:YES];
-                }
-            }
-            
-            // Log do resultado
-            static int frameAttempt = 0;
-            if (++frameAttempt % 30 == 0) { // A cada 30 tentativas
-                writeLog(@"[step] Tentativa #%d de obter frame: %@",
-                         frameAttempt,
-                         newBuffer ? @"SUCESSO" : @"FALHA");
-            }
-            
-            // Se obteve um buffer válido, adicionar à camada de preview
             if (newBuffer != nil) {
                 // Limpa quaisquer frames na fila
                 [g_previewLayer flush];
                 
-                // Adiciona o frame à camada de preview
+                // Adiciona o novo frame
                 [g_previewLayer enqueueSampleBuffer:newBuffer];
-                
-                // Verificar se o status do display layer tem algum erro
-                BOOL hasError = (g_previewLayer.status == AVQueuedSampleBufferRenderingStatusFailed);
-                if (hasError) {
-                    NSError *error = g_previewLayer.error;
-                    writeLog(@"[step] Erro no AVSampleBufferDisplayLayer: %@", error);
-                    
-                    // Tentar resetar o display layer
-                    [g_previewLayer flush];
-                }
                 
                 // Log ocasional para confirmar que frames estão sendo adicionados
                 static int frameCount = 0;
                 if (++frameCount % 100 == 0) { // Log a cada 100 frames
                     writeLog(@"[step] Frame #%d adicionado", frameCount);
-                }
-                
-                // Liberar o buffer
-                CFRelease(newBuffer);
-            } else {
-                // Log ocasional para evitar spam
-                static NSTimeInterval lastFrameFailTime = 0;
-                if (currentTime - lastFrameFailTime > 2.0) { // Log a cada 2 segundos
-                    writeLog(@"[step] Não foi possível obter frame para AVSampleBufferDisplayLayer");
-                    lastFrameFailTime = currentTime;
                 }
             }
         }
@@ -256,24 +1207,6 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
 // Método chamado quando a câmera é parada
 -(void) stopRunning {
     writeLog(@"AVCaptureSession::stopRunning - Câmera parando");
-    %orig;
-}
-
-// Método chamado quando um dispositivo de entrada é adicionado à sessão
-- (void)addInput:(AVCaptureDeviceInput *)input {
-    writeLog(@"AVCaptureSession::addInput - Adicionando dispositivo: %@", [input device]);
-    %orig;
-}
-
-// Método chamado quando um dispositivo de saída é adicionado à sessão
-- (void)addOutput:(AVCaptureOutput *)output{
-    writeLog(@"AVCaptureSession::addOutput - Adicionando output: %@", output);
-    
-    // Se for AVCaptureVideoDataOutput, vamos interceptar seu delegate
-    if ([output isKindOfClass:NSClassFromString(@"AVCaptureVideoDataOutput")]) {
-        writeLog(@"Detectado AVCaptureVideoDataOutput para interceptação");
-    }
-    
     %orig;
 }
 %end
@@ -306,12 +1239,8 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
         
         // Hook para o método que recebe cada frame de vídeo
         __block void (*original_method)(id self, SEL _cmd, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) = nil;
-
-        // Verifica as configurações de vídeo
-        NSDictionary *settings = [self videoSettings];
-        writeLog(@"Configurações de vídeo: %@", settings);
         
-        // Hook do método de recebimento de frames adaptado do baseSubstituicao.txt
+        // Hook do método de recebimento de frames
         MSHookMessageEx(
             [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
             imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection){
@@ -330,14 +1259,10 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
                             (int)g_photoOrientation);
                 }
                 
-                // Verificar se temos WebRTCManager e se burlador está ativo
-                if (isSubstitutionActive) {
+                // Verificar se temos WebRTCFrameProvider e se burlador está ativo
+                if (isSubstitutionActive && g_frameProvider) {
                     // Obtém um frame do WebRTC para substituir o buffer
-                    CMSampleBufferRef newBuffer = NULL;
-                    
-                    if (g_floatingWindow && g_floatingWindow.webRTCManager) {
-                        newBuffer = [g_floatingWindow.webRTCManager getCurrentFrame:sampleBuffer forceReNew:NO];
-                    }
+                    CMSampleBufferRef newBuffer = [g_frameProvider getCurrentFrame:sampleBuffer forceReNew:NO];
                     
                     // Atualiza o preview usando o buffer obtido
                     if (newBuffer != nil && g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
@@ -381,13 +1306,17 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
     // Inicializar o sistema de Darwin Notifications
     registerBurladorActive(NO); // Inicialmente desativado
     
+    // Inicializar o provedor de frames
+    g_frameProvider = [WebRTCFrameProvider sharedInstance];
+    
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         writeLog(@"Inicializando FloatingWindow");
         
         // Criar a janela flutuante
         g_floatingWindow = [[FloatingWindow alloc] init];
-        WebRTCManager *manager = [[WebRTCManager alloc] initWithDelegate:g_floatingWindow];
-        g_floatingWindow.webRTCManager = manager;
+        
+        // Estabelecer referências mútuas entre FloatingWindow e WebRTCFrameProvider
+        g_frameProvider.floatingWindow = g_floatingWindow;
         
         [g_floatingWindow show];
         writeLog(@"Janela flutuante exibida em modo minimizado");
@@ -395,15 +1324,141 @@ static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPo
 }
 %end
 
+// Modificação do FloatingWindow para trabalhar diretamente com o WebRTCFrameProvider
+%hook FloatingWindow
+
+// Substitui o método toggleSubstitution para usar o WebRTCFrameProvider
+- (void)toggleSubstitution:(UIButton *)sender {
+    writeLog(@"FloatingWindow::toggleSubstitution - Alterando estado do burlador");
+    
+    // Pega o estado atual do burlador (contrário do atual)
+    BOOL newState = !self.isSubstitutionActive;
+    
+    // Atualiza a propriedade isSubstitutionActive
+    self.isSubstitutionActive = newState;
+    
+    // Atualiza a interface de usuário
+    if (newState) {
+        [self.substitutionButton setTitle:@"Desativar Burlador" forState:UIControlStateNormal];
+        self.substitutionButton.backgroundColor = [UIColor redColor];
+        
+        // Habilitar botão de preview
+        self.toggleButton.enabled = YES;
+        self.toggleButton.alpha = 1.0;
+    } else {
+        [self.substitutionButton setTitle:@"Ativar Burlador" forState:UIControlStateNormal];
+        self.substitutionButton.backgroundColor = [UIColor systemBlueColor];
+        
+        // Desabilitar botão de preview e parar preview se estiver ativo
+        if (self.isPreviewActive) {
+            [self stopPreview];
+        }
+        self.toggleButton.enabled = NO;
+        self.toggleButton.alpha = 0.5;
+    }
+    
+    // Atualiza o ícone na versão minimizada
+    [self updateMinimizedIconWithState];
+    
+    // Chama o WebRTCFrameProvider para ativar/desativar o burlador
+    if (g_frameProvider) {
+        [g_frameProvider setSubstitutionActive:newState];
+    } else {
+        writeLog(@"FloatingWindow::toggleSubstitution - ERRO: g_frameProvider é nil");
+    }
+}
+
+// Substitui o método togglePreview para trabalhar com o WebRTCFrameProvider
+- (void)togglePreview:(UIButton *)sender {
+    if (self.isPreviewActive) {
+        [self stopPreview];
+    } else {
+        [self startPreview];
+    }
+}
+
+// Adiciona método para iniciar preview
+%new
+- (void)startPreview {
+    // Verificar se o burlador está ativo
+    if (!self.isSubstitutionActive) {
+        writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
+        return;
+    }
+    
+    self.isPreviewActive = YES;
+    [self.toggleButton setTitle:@"Desativar Preview" forState:UIControlStateNormal];
+    self.toggleButton.backgroundColor = [UIColor redColor]; // Vermelho quando ativo
+    
+    // Mostrar indicador de carregamento
+    [self.loadingIndicator startAnimating];
+    
+    // Expandir se estiver minimizado
+    if (self.windowState == FloatingWindowStateMinimized) {
+        [self setWindowState:FloatingWindowStateExpanded];
+    }
+    
+    // Parar indicador de carregamento quando o preview estiver ativo
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self.loadingIndicator stopAnimating];
+    });
+    
+    writeLog(@"[FloatingWindow] Preview ativado");
+}
+
+// Implementa o método para parar o preview
+%new
+- (void)stopPreview {
+    if (!self.isPreviewActive) return;
+    
+    self.isPreviewActive = NO;
+    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
+    self.toggleButton.backgroundColor = [UIColor systemBlueColor]; // Azul quando inativo
+    
+    // Parar indicador de carregamento
+    [self.loadingIndicator stopAnimating];
+    
+    writeLog(@"[FloatingWindow] Preview desativado");
+}
+
+// Implementa o método didReceiveVideoTrack para funcionar com o WebRTCFrameProvider
+%new
+- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
+    writeLog(@"[FloatingWindow] Faixa de vídeo recebida");
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Configurar o videoView se existir
+        if (self.videoView) {
+            // Adicionar o renderer para o videoView se existir
+            [videoTrack addRenderer:self.videoView];
+        }
+        
+        // Marcar que estamos recebendo frames
+        self.isReceivingFrames = YES;
+        
+        // Parar indicador de carregamento
+        [self.loadingIndicator stopAnimating];
+        
+        // Atualizar ícone minimizado
+        [self updateMinimizedIconWithState];
+    });
+}
+
+%end
+
 %ctor {
-    writeLog(@"Constructor chamado");
+    writeLog(@"Constructor chamado - Inicializando tweak");
 }
 
 %dtor {
-    writeLog(@"Destructor chamado");
+    writeLog(@"Destructor chamado - Limpando recursos");
     registerBurladorActive(NO); // Garantir que o estado é resetado
     if (g_floatingWindow) {
         [g_floatingWindow hide];
         g_floatingWindow = nil;
+    }
+    if (g_frameProvider) {
+        [g_frameProvider stopWebRTC];
+        g_frameProvider = nil;
     }
 }

@@ -2,9 +2,10 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import "logger.h"
+#import "DarwinNotifications.h"
 
 // -------------- CONFIGURAÇÃO GLOBAL --------------
-// Flag que controla a ativação/desativação do tweak
+// Flag que controla a ativação/desativação do tweak (agora usando Darwin Notifications)
 static BOOL g_tweakEnabled = YES;                          // Começa ativado por padrão
 
 // Variáveis globais para gerenciamento de recursos
@@ -32,8 +33,63 @@ static NSTimeInterval g_volume_down_time = 0;
 
 // -------------- FUNÇÕES UTILITÁRIAS --------------
 
+// Função para sincronizar estado entre processos usando Darwin Notifications
+static void syncTweakState(BOOL enabled) {
+    // Define o estado local
+    g_tweakEnabled = enabled;
+    
+    // Propaga estado para outros processos via Darwin Notifications
+    registerBurladorActive(enabled);
+    
+    // Log da mudança de estado
+    writeLog(@"[syncTweakState] Estado do tweak alterado para: %@", enabled ? @"ATIVADO" : @"DESATIVADO");
+    
+    // Atualiza imediatamente a visibilidade das camadas
+    if (!enabled) {
+        // 100% invisível quando desativado
+        if (g_maskLayer) g_maskLayer.opacity = 0.0;
+        if (g_previewLayer) g_previewLayer.opacity = 0.0;
+        
+        // Força reset ao desativar
+        g_bufferReload = YES;
+        Class getFrameClass = NSClassFromString(@"GetFrame");
+        if (getFrameClass) {
+            id instance = [getFrameClass performSelector:@selector(sharedInstance)];
+            if ([instance respondsToSelector:@selector(releaseResources)]) {
+                [instance performSelector:@selector(releaseResources)];
+            }
+        }
+    } else {
+        // 100% visível quando ativado
+        if (g_maskLayer) g_maskLayer.opacity = 1.0;
+        if (g_previewLayer) g_previewLayer.opacity = 1.0;
+        
+        // Força recarregamento do vídeo ao ativar
+        g_bufferReload = YES;
+    }
+}
+
+// Função para verificar o estado atual do tweak via Darwin Notifications
+static void checkTweakState() {
+    // Lê o estado das notificações Darwin
+    BOOL stateFromNotification = isBurladorActive();
+    
+    // Se o estado local for diferente do estado nas notificações, sincroniza
+    if (g_tweakEnabled != stateFromNotification) {
+        writeLog(@"[checkTweakState] Sincronizando estado: %d -> %d", g_tweakEnabled, stateFromNotification);
+        g_tweakEnabled = stateFromNotification;
+        
+        // Atualiza visibilidade das camadas
+        if (g_maskLayer) g_maskLayer.opacity = g_tweakEnabled ? 1.0 : 0.0;
+        if (g_previewLayer) g_previewLayer.opacity = g_tweakEnabled ? 1.0 : 0.0;
+    }
+}
+
 // Função para mostrar o alerta de status/toggle
 static void showMenuAlert(UIViewController *viewController) {
+    // Verifica o estado atual antes de mostrar o menu
+    checkTweakState();
+    
     // Estado do tweak
     NSString *title = g_tweakEnabled ? @"iOS-VCAM ✅" : @"iOS-VCAM";
     NSString *message = g_tweakEnabled ? @"A substituição da câmera está ativa." : @"A substituição da câmera está desativada.";
@@ -49,33 +105,8 @@ static void showMenuAlert(UIViewController *viewController) {
         actionWithTitle:toggleTitle
         style:g_tweakEnabled ? UIAlertActionStyleDestructive : UIAlertActionStyleDefault
         handler:^(UIAlertAction *action) {
-            // Inverte o estado
-            g_tweakEnabled = !g_tweakEnabled;
-            writeLog(@"Status do tweak alterado para: %@", g_tweakEnabled ? @"Ativado" : @"Desativado");
-            
-            // Atualiza imediatamente a visibilidade das camadas
-            if (!g_tweakEnabled) {
-                // 100% invisível quando desativado
-                if (g_maskLayer) g_maskLayer.opacity = 0.0;
-                if (g_previewLayer) g_previewLayer.opacity = 0.0;
-                
-                // Força reset ao desativar
-                g_bufferReload = YES;
-                Class getFrameClass = NSClassFromString(@"GetFrame");
-                if (getFrameClass) {
-                    id instance = [getFrameClass performSelector:@selector(sharedInstance)];
-                    if ([instance respondsToSelector:@selector(releaseResources)]) {
-                        [instance performSelector:@selector(releaseResources)];
-                    }
-                }
-            } else {
-                // 100% visível quando ativado
-                if (g_maskLayer) g_maskLayer.opacity = 1.0;
-                if (g_previewLayer) g_previewLayer.opacity = 1.0;
-                
-                // Força recarregamento do vídeo ao ativar
-                g_bufferReload = YES;
-            }
+            // Inverte o estado e sincroniza via Darwin Notifications
+            syncTweakState(!g_tweakEnabled);
             
             // Notifica o usuário sobre a mudança de estado
             UIAlertController *confirmationAlert = [UIAlertController
@@ -194,6 +225,8 @@ static UIWindow* getKeyWindow() {
     @try {
         @synchronized (self) {
             // Verificação crítica - não configura se o tweak estiver desativado
+            // Verifica o estado atual do tweak via Darwin Notifications
+            checkTweakState();
             if (!g_tweakEnabled) {
                 return NO;
             }
@@ -255,6 +288,9 @@ static UIWindow* getKeyWindow() {
 
 // Verifica se o leitor de vídeo está no fim e reinicia se necessário
 - (void)checkAndRestartReaderIfNeeded {
+    // Verifica o estado atual do tweak via Darwin Notifications
+    checkTweakState();
+    
     // Não faz nada se o tweak estiver desativado
     if (!g_tweakEnabled) {
         return;
@@ -270,6 +306,9 @@ static UIWindow* getKeyWindow() {
 
 // Método para obter o frame atual de vídeo
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer {
+    // Verifica o estado atual do tweak via Darwin Notifications
+    checkTweakState();
+    
     // VERIFICAÇÃO CRÍTICA - se o tweak estiver desativado, retorna o buffer original
     if (!g_tweakEnabled) {
         return originSampleBuffer;
@@ -486,6 +525,9 @@ static UIWindow* getKeyWindow() {
 // Método adicionado para atualização contínua do preview
 %new
 - (void)step:(CADisplayLink *)sender {
+    // Verifica o estado atual do tweak via Darwin Notifications
+    checkTweakState();
+    
     // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, garante que as camadas estejam invisíveis
     if (!g_tweakEnabled) {
         if (g_maskLayer != nil) {
@@ -562,6 +604,10 @@ static UIWindow* getKeyWindow() {
     g_cameraRunning = YES;
     g_bufferReload = YES;
     g_refreshPreviewByVideoDataOutputTime = [[NSDate date] timeIntervalSince1970] * 1000;
+    
+    // Verifica o estado atual do tweak
+    checkTweakState();
+    
     %orig;
 }
 
@@ -610,6 +656,9 @@ static UIWindow* getKeyWindow() {
             imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) {
                 // Atualiza timestamp para controle de conflito com preview
                 g_refreshPreviewByVideoDataOutputTime = ([[NSDate date] timeIntervalSince1970]) * 1000;
+                
+                // Verifica o estado atual do tweak via Darwin Notifications
+                checkTweakState();
                 
                 // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, não faz nada
                 if (!g_tweakEnabled) {
@@ -673,6 +722,44 @@ static UIWindow* getKeyWindow() {
 }
 %end
 
+// Observer para notificações Darwin - detecta mudanças de outros processos
+static int notificationToken = 0;
+static void observeTweakState() {
+    // Registra para receber notificações
+    int status = notify_register_dispatch(
+        NOTIFICATION_BURLADOR_ACTIVATION,
+        &notificationToken,
+        dispatch_get_main_queue(),
+        ^(int token) {
+            // Quando recebe uma notificação, sincroniza o estado
+            uint64_t state = 0;
+            notify_get_state(token, &state);
+            BOOL newState = (state == 1);
+            
+            // Log para verificação
+            writeLog(@"[Observer] Recebeu notificação - Estado: %@", newState ? @"ATIVADO" : @"DESATIVADO");
+            
+            // Atualiza estado local sem enviar nova notificação (para evitar loop)
+            if (g_tweakEnabled != newState) {
+                g_tweakEnabled = newState;
+                
+                // Atualiza visibilidade das camadas
+                if (g_maskLayer) g_maskLayer.opacity = newState ? 1.0 : 0.0;
+                if (g_previewLayer) g_previewLayer.opacity = newState ? 1.0 : 0.0;
+                
+                // Força recarregamento se necessário
+                if (newState) {
+                    g_bufferReload = YES;
+                }
+            }
+        }
+    );
+    
+    if (status != NOTIFY_STATUS_OK) {
+        writeLog(@"[Observer] Falha ao registrar para notificações: %d", status);
+    }
+}
+
 // Função chamada quando o tweak é carregado
 %ctor {
     writeLog(@"--------------------------------------------------");
@@ -686,13 +773,24 @@ static UIWindow* getKeyWindow() {
     // Inicializa recursos globais
     g_fileManager = [NSFileManager defaultManager];
     
+    // Registra como observador de notificações Darwin para sincronizar estado entre processos
+    observeTweakState();
+    
+    // Verifica o estado atual via Darwin Notifications
+    checkTweakState();
+    
     writeLog(@"Processo atual: %@", [NSProcessInfo processInfo].processName);
-    writeLog(@"Tweak inicializado com sucesso");
+    writeLog(@"Tweak inicializado com sucesso com estado: %@", g_tweakEnabled ? @"ATIVADO" : @"DESATIVADO");
 }
 
 // Função chamada quando o tweak é descarregado
 %dtor {
     writeLog(@"iOS-VCAM - Finalizando tweak");
+    
+    // Desregistra das notificações
+    if (notificationToken != 0) {
+        notify_cancel(notificationToken);
+    }
     
     // Libera recursos antes de descarregar
     g_fileManager = nil;

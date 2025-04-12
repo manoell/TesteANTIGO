@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = CameraPreviewTweak
 
-CameraPreviewTweak_FILES = Tweak.xm logger.m
+CameraPreviewTweak_FILES = Tweak.xm logger.m DarwinNotifications.m
 CameraPreviewTweak_LIBRARIES = substrate
 CameraPreviewTweak_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 

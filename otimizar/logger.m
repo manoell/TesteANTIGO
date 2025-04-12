@@ -1,18 +1,16 @@
 #import "logger.h"
 #import <UIKit/UIKit.h>
 
-static NSString *gLogPath = @"/var/tmp/webrtctweak.log";
+static NSString *const kLogPath = @"/var/tmp/webrtctweak.log";
 static NSLock *gLogLock = nil;
 
-// Inicializar o lock uma única vez
 __attribute__((constructor))
 static void initialize() {
-    if (!gLogLock) {
-        gLogLock = [[NSLock alloc] init];
-    }
+    gLogLock = gLogLock ?: [[NSLock alloc] init];
 }
 
 void writeLog(NSString *format, ...) {
+    // Formatar a mensagem
     va_list args;
     va_start(args, format);
     NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
@@ -31,15 +29,13 @@ void writeLog(NSString *format, ...) {
     // Escrever no arquivo de forma thread-safe
     [gLogLock lock];
     @try {
-        NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:gLogPath];
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForWritingAtPath:kLogPath];
         if (fileHandle) {
             [fileHandle seekToEndOfFile];
             [fileHandle writeData:[logMessage dataUsingEncoding:NSUTF8StringEncoding]];
             [fileHandle closeFile];
         } else {
-            // Criar arquivo se não existir
-            [logMessage writeToFile:gLogPath atomically:YES encoding:NSUTF8StringEncoding
-                             error:nil];
+            [logMessage writeToFile:kLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         }
     } @finally {
         [gLogLock unlock];

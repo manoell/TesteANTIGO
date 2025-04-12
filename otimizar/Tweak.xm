@@ -5,24 +5,18 @@
 #import "DarwinNotifications.h"
 
 // -------------- CONFIGURAÇÃO GLOBAL --------------
-// Flag que controla a ativação/desativação do tweak (agora usando Darwin Notifications)
-static BOOL g_tweakEnabled = YES;                          // Começa ativado por padrão
-
-// Variáveis globais para gerenciamento de recursos
+static BOOL g_tweakEnabled = YES;                          // Estado do tweak
 static AVSampleBufferDisplayLayer *g_previewLayer = nil;   // Layer para visualização da câmera
 static CALayer *g_maskLayer = nil;                         // Camada de máscara
-static NSFileManager *g_fileManager = nil;                 // Objeto para gerenciamento de arquivos
-static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";  // Caminho do arquivo de vídeo
-static NSString *g_cameraPosition = @"B";                  // Posição da câmera: "B" (traseira) ou "F" (frontal)
+static NSFileManager *g_fileManager = nil;                 // Gerenciamento de arquivos
+static NSString *const g_videoFile = @"/var/mobile/Media/DCIM/default.mp4";
+static NSString *g_cameraPosition = @"B";                  // "B" (traseira) ou "F" (frontal)
 static BOOL g_cameraRunning = NO;                          // Status da sessão de câmera
-static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0; // Timestamp da última atualização
-
-// Variáveis para otimização de recursos de vídeo
+static NSTimeInterval g_refreshPreviewByVideoDataOutputTime = 0;
 static BOOL g_bufferReload = YES;                          // Controle de recarregamento de vídeo
-
-// Variáveis para controle da interface
 static NSTimeInterval g_volume_up_time = 0;
 static NSTimeInterval g_volume_down_time = 0;
+static int g_notificationObserverToken = 0;                // Token para observer de notificações
 
 // Forward declaration para GetFrame
 @protocol GetFrameProtocol <NSObject>
@@ -35,23 +29,17 @@ static NSTimeInterval g_volume_down_time = 0;
 
 // Função para sincronizar estado entre processos usando Darwin Notifications
 static void syncTweakState(BOOL enabled) {
-    // Define o estado local
     g_tweakEnabled = enabled;
-    
-    // Propaga estado para outros processos via Darwin Notifications
     registerBurladorActive(enabled);
-    
-    // Log da mudança de estado
     writeLog(@"[syncTweakState] Estado do tweak alterado para: %@", enabled ? @"ATIVADO" : @"DESATIVADO");
     
     // Atualiza imediatamente a visibilidade das camadas
     if (!enabled) {
-        // 100% invisível quando desativado
         if (g_maskLayer) g_maskLayer.opacity = 0.0;
         if (g_previewLayer) g_previewLayer.opacity = 0.0;
-        
-        // Força reset ao desativar
         g_bufferReload = YES;
+        
+        // Reset quando desativado
         Class getFrameClass = NSClassFromString(@"GetFrame");
         if (getFrameClass) {
             id instance = [getFrameClass performSelector:@selector(sharedInstance)];
@@ -60,21 +48,15 @@ static void syncTweakState(BOOL enabled) {
             }
         }
     } else {
-        // 100% visível quando ativado
         if (g_maskLayer) g_maskLayer.opacity = 1.0;
         if (g_previewLayer) g_previewLayer.opacity = 1.0;
-        
-        // Força recarregamento do vídeo ao ativar
         g_bufferReload = YES;
     }
 }
 
-// Função para verificar o estado atual do tweak via Darwin Notifications
+// Verifica o estado atual do tweak via Darwin Notifications
 static void checkTweakState() {
-    // Lê o estado das notificações Darwin
     BOOL stateFromNotification = isBurladorActive();
-    
-    // Se o estado local for diferente do estado nas notificações, sincroniza
     if (g_tweakEnabled != stateFromNotification) {
         writeLog(@"[checkTweakState] Sincronizando estado: %d -> %d", g_tweakEnabled, stateFromNotification);
         g_tweakEnabled = stateFromNotification;
@@ -85,12 +67,10 @@ static void checkTweakState() {
     }
 }
 
-// Função para mostrar o alerta de status/toggle
+// Mostra o alerta de status/toggle
 static void showMenuAlert(UIViewController *viewController) {
-    // Verifica o estado atual antes de mostrar o menu
     checkTweakState();
     
-    // Estado do tweak
     NSString *title = g_tweakEnabled ? @"iOS-VCAM ✅" : @"iOS-VCAM";
     NSString *message = g_tweakEnabled ? @"A substituição da câmera está ativa." : @"A substituição da câmera está desativada.";
     
@@ -99,16 +79,13 @@ static void showMenuAlert(UIViewController *viewController) {
         message:message
         preferredStyle:UIAlertControllerStyleAlert];
     
-    // Botão para ativar/desativar
     NSString *toggleTitle = g_tweakEnabled ? @"Desativar" : @"Ativar";
     UIAlertAction *toggleAction = [UIAlertAction
         actionWithTitle:toggleTitle
         style:g_tweakEnabled ? UIAlertActionStyleDestructive : UIAlertActionStyleDefault
         handler:^(UIAlertAction *action) {
-            // Inverte o estado e sincroniza via Darwin Notifications
             syncTweakState(!g_tweakEnabled);
             
-            // Notifica o usuário sobre a mudança de estado
             UIAlertController *confirmationAlert = [UIAlertController
                 alertControllerWithTitle:@"iOS-VCAM"
                 message:[NSString stringWithFormat:@"A substituição da câmera foi %@.",
@@ -123,38 +100,27 @@ static void showMenuAlert(UIViewController *viewController) {
             [viewController presentViewController:confirmationAlert animated:YES completion:nil];
         }];
     
-    // Botão para fechar
-    UIAlertAction *closeAction = [UIAlertAction
+    [alertController addAction:toggleAction];
+    [alertController addAction:[UIAlertAction
         actionWithTitle:@"Fechar"
         style:UIAlertActionStyleCancel
-        handler:nil];
+        handler:nil]];
     
-    // Adiciona as ações ao alerta
-    [alertController addAction:toggleAction];
-    [alertController addAction:closeAction];
-    
-    // Apresenta o alerta
     [viewController presentViewController:alertController animated:YES completion:nil];
 }
 
-// Função para obter a janela principal
+// Obtém a janela principal
 static UIWindow* getKeyWindow() {
-    UIWindow *keyWindow = nil;
     NSArray *windows = UIApplication.sharedApplication.windows;
     
     for (UIWindow *window in windows) {
         if (window.isKeyWindow) {
-            keyWindow = window;
-            break;
+            return window;
         }
     }
     
     // Fallback para iOS 13+
-    if (!keyWindow && windows.count > 0) {
-        keyWindow = windows[0];
-    }
-    
-    return keyWindow;
+    return windows.count > 0 ? windows[0] : nil;
 }
 
 // -------------- CLASSE PARA GERENCIAMENTO DE FRAMES --------------
@@ -173,7 +139,6 @@ static UIWindow* getKeyWindow() {
     BOOL _isSetup;
 }
 
-// Implementação Singleton
 + (instancetype)sharedInstance {
     static GetFrame *instance = nil;
     static dispatch_once_t onceToken;
@@ -220,28 +185,15 @@ static UIWindow* getKeyWindow() {
     }
 }
 
-// Método para configurar o leitor de vídeo
 - (BOOL)setupVideoReader {
     @try {
         @synchronized (self) {
-            // Verificação crítica - não configura se o tweak estiver desativado
-            // Verifica o estado atual do tweak via Darwin Notifications
             checkTweakState();
-            if (!g_tweakEnabled) {
-                return NO;
+            if (!g_tweakEnabled || _isSetup || ![g_fileManager fileExistsAtPath:g_videoFile]) {
+                return _isSetup;
             }
             
-            // Verificamos se já está configurado
-            if (_isSetup) {
-                return YES;
-            }
-            
-            // Verificamos se existe um arquivo de vídeo para substituição
-            if (![g_fileManager fileExistsAtPath:g_videoFile]) {
-                return NO;
-            }
-            
-            // Criamos um AVAsset a partir do arquivo de vídeo
+            // Criar asset de vídeo
             NSURL *videoURL = [NSURL fileURLWithPath:g_videoFile];
             _videoAsset = [AVAsset assetWithURL:videoURL];
             
@@ -249,26 +201,31 @@ static UIWindow* getKeyWindow() {
                 return NO;
             }
             
+            // Configurar reader
             NSError *error = nil;
             _reader = [AVAssetReader assetReaderWithAsset:_videoAsset error:&error];
             if (error) {
                 return NO;
             }
             
+            // Obter track de vídeo
             AVAssetTrack *videoTrack = [[_videoAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];
             if (!videoTrack) {
                 return NO;
             }
             
-            // Configuramos outputs para diferentes formatos de pixel
-            NSDictionary *outputSettings32BGRA = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)};
-            _videoTrackout_32BGRA = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettings32BGRA];
+            // Configurar outputs para diferentes formatos de pixel
+            _videoTrackout_32BGRA = [[AVAssetReaderTrackOutput alloc]
+                initWithTrack:videoTrack
+                outputSettings:@{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)}];
             
-            NSDictionary *outputSettingsVideoRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)};
-            _videoTrackout_420YpCbCr8BiPlanarVideoRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsVideoRange];
+            _videoTrackout_420YpCbCr8BiPlanarVideoRange = [[AVAssetReaderTrackOutput alloc]
+                initWithTrack:videoTrack
+                outputSettings:@{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)}];
             
-            NSDictionary *outputSettingsFullRange = @{(id)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)};
-            _videoTrackout_420YpCbCr8BiPlanarFullRange = [[AVAssetReaderTrackOutput alloc] initWithTrack:videoTrack outputSettings:outputSettingsFullRange];
+            _videoTrackout_420YpCbCr8BiPlanarFullRange = [[AVAssetReaderTrackOutput alloc]
+                initWithTrack:videoTrack
+                outputSettings:@{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)}];
             
             [_reader addOutput:_videoTrackout_32BGRA];
             [_reader addOutput:_videoTrackout_420YpCbCr8BiPlanarVideoRange];
@@ -286,12 +243,10 @@ static UIWindow* getKeyWindow() {
     }
 }
 
-// Verifica se o leitor de vídeo está no fim e reinicia se necessário
+// Verifica e reinicia o reader se necessário
 - (void)checkAndRestartReaderIfNeeded {
-    // Verifica o estado atual do tweak via Darwin Notifications
     checkTweakState();
     
-    // Não faz nada se o tweak estiver desativado
     if (!g_tweakEnabled) {
         return;
     }
@@ -304,37 +259,30 @@ static UIWindow* getKeyWindow() {
     }
 }
 
-// Método para obter o frame atual de vídeo
+// Obtém frame atual de vídeo
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer {
-    // Verifica o estado atual do tweak via Darwin Notifications
     checkTweakState();
     
-    // VERIFICAÇÃO CRÍTICA - se o tweak estiver desativado, retorna o buffer original
-    if (!g_tweakEnabled) {
-        return originSampleBuffer;
-    }
-    
-    // Verificação de existência do arquivo
-    if (![g_fileManager fileExistsAtPath:g_videoFile]) {
+    // Se desativado ou arquivo inexistente, retorna buffer original
+    if (!g_tweakEnabled || ![g_fileManager fileExistsAtPath:g_videoFile]) {
         return originSampleBuffer;
     }
     
     __block CMSampleBufferRef result = nil;
     
     dispatch_sync(_processingQueue, ^{
-        // Inicializa variáveis para análise do buffer
+        // Análise do buffer original
         CMFormatDescriptionRef formatDescription = nil;
         CMMediaType mediaType = -1;
         FourCharCode subMediaType = -1;
         
-        // Se temos um buffer de entrada, extraímos suas informações
         if (originSampleBuffer != nil) {
             formatDescription = CMSampleBufferGetFormatDescription(originSampleBuffer);
             if (formatDescription) {
                 mediaType = CMFormatDescriptionGetMediaType(formatDescription);
                 subMediaType = CMFormatDescriptionGetMediaSubType(formatDescription);
                 
-                // Se não for vídeo, retornamos o buffer original sem alterações
+                // Se não for vídeo, retorna sem alterações
                 if (mediaType != kCMMediaType_Video) {
                     result = originSampleBuffer;
                     return;
@@ -342,7 +290,7 @@ static UIWindow* getKeyWindow() {
             }
         }
         
-        // Se precisamos recarregar o vídeo, inicializamos os componentes de leitura
+        // Configura leitor de vídeo se necessário
         if (g_bufferReload || !_isSetup) {
             g_bufferReload = NO;
             
@@ -353,17 +301,17 @@ static UIWindow* getKeyWindow() {
             }
         }
         
-        // Verificar se o leitor chegou ao final e reiniciar se necessário
+        // Verifica fim do vídeo e reinicia se necessário
         [self checkAndRestartReaderIfNeeded];
         
-        // Obtém um novo frame de cada formato
+        // Obtém frames nos diferentes formatos
         CMSampleBufferRef videoTrackout_32BGRA_Buffer = [_videoTrackout_32BGRA copyNextSampleBuffer];
         CMSampleBufferRef videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer = [_videoTrackout_420YpCbCr8BiPlanarVideoRange copyNextSampleBuffer];
         CMSampleBufferRef videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer = [_videoTrackout_420YpCbCr8BiPlanarFullRange copyNextSampleBuffer];
         
         CMSampleBufferRef newsampleBuffer = nil;
         
-        // Escolhe o buffer adequado com base no formato do buffer original
+        // Seleciona o buffer baseado no formato do original
         switch (subMediaType) {
             case kCVPixelFormatType_32BGRA:
                 if (videoTrackout_32BGRA_Buffer) {
@@ -381,31 +329,31 @@ static UIWindow* getKeyWindow() {
                 }
                 break;
             default:
-                // Para formatos desconhecidos, usamos o formato 420YpCbCr8BiPlanarFullRange como padrão
+                // Fallback para formato padrão
                 if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer) {
                     CMSampleBufferCreateCopy(kCFAllocatorDefault, videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer, &newsampleBuffer);
                 }
         }
         
-        // Libera os buffers temporários
+        // Libera buffers temporários
         if (videoTrackout_32BGRA_Buffer) CFRelease(videoTrackout_32BGRA_Buffer);
         if (videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer) CFRelease(videoTrackout_420YpCbCr8BiPlanarVideoRange_Buffer);
         if (videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer) CFRelease(videoTrackout_420YpCbCr8BiPlanarFullRange_Buffer);
         
-        // Se não conseguimos criar um novo buffer, marca para recarregar na próxima vez
+        // Se não conseguiu criar buffer, marca para recarregar e retorna original
         if (newsampleBuffer == nil) {
             g_bufferReload = YES;
             result = originSampleBuffer;
             return;
         }
         
-        // Libera o buffer antigo se existir
+        // Libera buffer antigo
         if (_sampleBuffer != nil) {
             CFRelease(_sampleBuffer);
             _sampleBuffer = nil;
         }
         
-        // Se temos um buffer original, precisamos copiar propriedades dele
+        // Transfere propriedades do buffer original para o novo
         if (originSampleBuffer != nil) {
             CMSampleBufferRef copyBuffer = nil;
             CVImageBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(newsampleBuffer);
@@ -418,12 +366,12 @@ static UIWindow* getKeyWindow() {
                     .decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originSampleBuffer)
                 };
                 
-                // Cria descrição de formato de vídeo para o novo buffer
+                // Cria descrição de formato de vídeo
                 CMVideoFormatDescriptionRef videoInfo = nil;
                 OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, &videoInfo);
                 
                 if (status == noErr && videoInfo != nil) {
-                    // Cria um novo buffer baseado no pixelBuffer mas com as informações de tempo do original
+                    // Cria buffer final com timing do original
                     status = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, true, NULL, NULL, videoInfo, &sampleTime, &copyBuffer);
                     
                     if (status == noErr && copyBuffer != nil) {
@@ -436,11 +384,11 @@ static UIWindow* getKeyWindow() {
             
             CFRelease(newsampleBuffer);
         } else {
-            // Se não temos buffer original, usamos o novo diretamente
+            // Sem buffer original, usa o novo diretamente
             _sampleBuffer = newsampleBuffer;
         }
         
-        // Verifica se o buffer final é válido
+        // Verifica validade do buffer final
         if (_sampleBuffer != nil && CMSampleBufferIsValid(_sampleBuffer)) {
             result = _sampleBuffer;
         } else {
@@ -459,7 +407,7 @@ static UIWindow* getKeyWindow() {
 - (void)layoutSublayers {
     %orig;
     
-    // Garante que todas as camadas tenham o tamanho correto após layouts
+    // Atualiza tamanho das camadas após layout
     if (g_previewLayer != nil) {
         g_previewLayer.frame = self.bounds;
         if (g_maskLayer != nil) {
@@ -471,47 +419,48 @@ static UIWindow* getKeyWindow() {
 - (void)addSublayer:(CALayer *)layer {
     %orig;
 
-    // Configura display link para atualização contínua, se não existir
+    // Configura display link para atualização contínua
     static CADisplayLink *displayLink = nil;
     if (displayLink == nil) {
         displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(step:)];
         
-        // Ajusta a taxa de frames baseado no dispositivo
+        // Ajusta taxa de frames
         if (@available(iOS 10.0, *)) {
-            displayLink.preferredFramesPerSecond = 30; // 30 FPS para economia de bateria
+            displayLink.preferredFramesPerSecond = 30;
         } else {
-            displayLink.frameInterval = 2; // Aproximadamente 30 FPS em dispositivos mais antigos
+            displayLink.frameInterval = 2;
         }
         
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     }
 
-    // Adiciona camadas de preview se ainda não existem
+    // Inicializa camadas de preview se necessário
     if (![[self sublayers] containsObject:g_previewLayer]) {
+        // Inicializa camada de exibição
         g_previewLayer = [[AVSampleBufferDisplayLayer alloc] init];
 
-        // Máscara preta para cobrir a visualização original
+        // Inicializa máscara
         g_maskLayer = [CALayer new];
         g_maskLayer.backgroundColor = [UIColor blackColor].CGColor;
-        g_maskLayer.opacity = 0; // Começa invisível
+        g_maskLayer.opacity = 0;
         
-        // Configura o tipo de gravidade de vídeo para garantir comportamento consistente
+        // Configura propriedades da camada de exibição
         [g_previewLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-        g_previewLayer.opacity = 0; // Começa invisível
+        g_previewLayer.opacity = 0;
         
-        // Configura o tamanho das camadas imediatamente usando o bounds da camada atual
+        // Define tamanho
         g_previewLayer.frame = self.bounds;
         g_maskLayer.frame = self.bounds;
         
-        // Insere as camadas na hierarquia
+        // Adiciona na hierarquia
         [self insertSublayer:g_maskLayer above:layer];
         [self insertSublayer:g_previewLayer above:g_maskLayer];
         
-        // Configuração adicional para o comportamento correto
+        // Desativa animações
         g_previewLayer.actions = @{
-            @"opacity": [NSNull null],  // Desativa animação de opacidade
-            @"bounds": [NSNull null],   // Desativa animação de bounds
-            @"position": [NSNull null]  // Desativa animação de posição
+            @"opacity": [NSNull null],
+            @"bounds": [NSNull null],
+            @"position": [NSNull null]
         };
         
         g_maskLayer.actions = @{
@@ -522,75 +471,58 @@ static UIWindow* getKeyWindow() {
     }
 }
 
-// Método adicionado para atualização contínua do preview
+// Método para atualização contínua do preview
 %new
 - (void)step:(CADisplayLink *)sender {
-    // Verifica o estado atual do tweak via Darwin Notifications
+    // Verifica estado atual
     checkTweakState();
     
-    // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, garante que as camadas estejam invisíveis
+    // Se desativado, garante camadas invisíveis
     if (!g_tweakEnabled) {
-        if (g_maskLayer != nil) {
-            g_maskLayer.opacity = 0.0;
-        }
-        if (g_previewLayer != nil) {
-            g_previewLayer.opacity = 0.0;
-        }
+        if (g_maskLayer) g_maskLayer.opacity = 0.0;
+        if (g_previewLayer) g_previewLayer.opacity = 0.0;
         return;
     }
     
-    // Verifica se o vídeo existe
+    // Verifica existência do vídeo
     BOOL shouldShowOverlay = [g_fileManager fileExistsAtPath:g_videoFile];
     
-    // Controla a visibilidade das camadas - simples e direto
     if (shouldShowOverlay) {
-        // Atualiza o tamanho das camadas antes de torná-las visíveis
-        BOOL needsResize = !CGRectEqualToRect(g_previewLayer.frame, self.bounds);
-        if (needsResize) {
+        // Atualiza tamanho se necessário
+        if (!CGRectEqualToRect(g_previewLayer.frame, self.bounds)) {
             g_previewLayer.frame = self.bounds;
             g_maskLayer.frame = self.bounds;
         }
         
-        // Camadas 100% visíveis quando ativado
-        if (g_maskLayer != nil) {
-            g_maskLayer.opacity = 1.0;
-        }
-        if (g_previewLayer != nil) {
+        // Torna camadas visíveis
+        if (g_maskLayer) g_maskLayer.opacity = 1.0;
+        if (g_previewLayer) {
             g_previewLayer.opacity = 1.0;
-            // Usa gravidade fixa para comportamento consistente
             [g_previewLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
         }
     } else {
-        // Camadas 100% invisíveis quando não há vídeo
-        if (g_maskLayer != nil) {
-            g_maskLayer.opacity = 0.0;
-        }
-        if (g_previewLayer != nil) {
-            g_previewLayer.opacity = 0.0;
-        }
-        return; // Evita processamento adicional
+        // Torna camadas invisíveis se não há vídeo
+        if (g_maskLayer) g_maskLayer.opacity = 0.0;
+        if (g_previewLayer) g_previewLayer.opacity = 0.0;
+        return;
     }
 
-    // Se a câmera está ativa e a camada de preview existe
-    if (g_cameraRunning && g_previewLayer != nil && g_tweakEnabled) {
-        // Controle para evitar conflito com VideoDataOutput e limitar FPS
+    // Atualiza preview com frames do vídeo
+    if (g_cameraRunning && g_previewLayer && g_tweakEnabled) {
         static NSTimeInterval refreshTime = 0;
         NSTimeInterval nowTime = [[NSDate date] timeIntervalSince1970] * 1000;
         
-        // Atualiza o preview apenas se não houver atualização recente do VideoDataOutput
+        // Controle de taxa de atualização
         if (nowTime - g_refreshPreviewByVideoDataOutputTime > 100 &&
-            nowTime - refreshTime > 33.33 && // Aprox. 30 FPS
+            nowTime - refreshTime > 33.33 && // ~30 FPS
             g_previewLayer.readyForMoreMediaData) {
             
             refreshTime = nowTime;
             
-            // Obtém o próximo frame
+            // Obtém próximo frame e o exibe
             CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:nil];
             if (newBuffer != nil) {
-                // Limpa quaisquer frames na fila
                 [g_previewLayer flush];
-                
-                // Adiciona à camada de preview
                 [g_previewLayer enqueueSampleBuffer:newBuffer];
             }
         }
@@ -598,16 +530,13 @@ static UIWindow* getKeyWindow() {
 }
 %end
 
-// Hook para gerenciar o estado da sessão da câmera
+// Hook para gerenciar estado da sessão da câmera
 %hook AVCaptureSession
 -(void) startRunning {
     g_cameraRunning = YES;
     g_bufferReload = YES;
     g_refreshPreviewByVideoDataOutputTime = [[NSDate date] timeIntervalSince1970] * 1000;
-    
-    // Verifica o estado atual do tweak
     checkTweakState();
-    
     %orig;
 }
 
@@ -617,7 +546,7 @@ static UIWindow* getKeyWindow() {
 }
 
 - (void)addInput:(AVCaptureDeviceInput *)input {
-    // Determina qual câmera está sendo usada (frontal ou traseira)
+    // Determina posição da câmera
     if ([[input device] position] > 0) {
         g_cameraPosition = [[input device] position] == 1 ? @"B" : @"F";
     }
@@ -625,95 +554,108 @@ static UIWindow* getKeyWindow() {
 }
 %end
 
-// Hook para intercepção do fluxo de vídeo em tempo real
+// Hook para intercepção do fluxo de vídeo
 %hook AVCaptureVideoDataOutput
 - (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
     // Verificações de segurança
-    if (sampleBufferDelegate == nil || sampleBufferCallbackQueue == nil) {
+    if (!sampleBufferDelegate || !sampleBufferCallbackQueue) {
         return %orig;
     }
     
-    // Lista para controlar quais classes já foram "hooked"
+    // Lista para controlar classes já hooked
     static NSMutableArray *hooked;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         hooked = [NSMutableArray new];
     });
     
-    // Obtém o nome da classe do delegate
     NSString *className = NSStringFromClass([sampleBufferDelegate class]);
     
-    // Verifica se esta classe já foi "hooked"
+    // Se ainda não foi hooked, faz o hook
     if (![hooked containsObject:className]) {
         [hooked addObject:className];
         
-        // Hook para o método que recebe cada frame de vídeo
-        __block void (*original_method)(id self, SEL _cmd, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) = nil;
+        __block void (*original_method)(id, SEL, AVCaptureOutput *, CMSampleBufferRef, AVCaptureConnection *) = nil;
         
-        // Hook do método de recebimento de frames
+        // Hook do método de captureOutput
         MSHookMessageEx(
-            [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+            [sampleBufferDelegate class],
+            @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
             imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) {
-                // Atualiza timestamp para controle de conflito com preview
-                g_refreshPreviewByVideoDataOutputTime = ([[NSDate date] timeIntervalSince1970]) * 1000;
+                // Atualiza timestamp
+                g_refreshPreviewByVideoDataOutputTime = [[NSDate date] timeIntervalSince1970] * 1000;
                 
-                // Verifica o estado atual do tweak via Darwin Notifications
+                // Verifica estado
                 checkTweakState();
                 
-                // VERIFICAÇÃO CRÍTICA: Se o tweak está desativado, não faz nada
+                // Se desativado, passa buffer original
                 if (!g_tweakEnabled) {
                     return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
                                           output, sampleBuffer, connection);
                 }
                 
-                // Verifica se o arquivo de vídeo existe
+                // Verifica existência do vídeo
                 if ([g_fileManager fileExistsAtPath:g_videoFile]) {
-                    // Obtém um frame do vídeo para substituir o buffer
+                    // Obtém frame de substituição
                     CMSampleBufferRef newBuffer = [[GetFrame sharedInstance] getCurrentFrame:sampleBuffer];
                     
-                    // Verifica se obtivemos um buffer válido e diferente do original
-                    if (newBuffer != nil && newBuffer != sampleBuffer) {
-                        // Atualiza o preview usando o buffer
-                        if (g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
+                    // Se obteve buffer válido, usa-o
+                    if (newBuffer && newBuffer != sampleBuffer) {
+                        // Atualiza preview
+                        if (g_previewLayer && g_previewLayer.readyForMoreMediaData) {
                             [g_previewLayer flush];
                             [g_previewLayer enqueueSampleBuffer:newBuffer];
                         }
                         
-                        // Chama o método original com o buffer substituído
                         return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
                                               output, newBuffer, connection);
                     }
                 }
                 
-                // Se não há vídeo para substituir ou falhou, usa o buffer original
+                // Fallback para buffer original
                 return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
                                       output, sampleBuffer, connection);
-            }), (IMP*)&original_method
+            }),
+            (IMP*)&original_method
         );
     }
     
-    // Chama o método original
     %orig;
 }
 %end
 
-// Hook para os controles de volume
+// Hook para controles de volume
 %hook VolumeControl
 -(void)increaseVolume {
-    NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
-    g_volume_up_time = nowtime;
+    // Atualiza o timestamp de volume up
+    g_volume_up_time = [[NSDate date] timeIntervalSince1970];
+    
+    // Reseta o controle após um período (5 segundos)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // Só reseta se não tiver sido acionado o menu
+        if (fabs([[NSDate date] timeIntervalSince1970] - g_volume_down_time) > 4.0) {
+            g_volume_up_time = 0;
+        }
+    });
+    
     %orig;
 }
 
 -(void)decreaseVolume {
     NSTimeInterval nowtime = [[NSDate date] timeIntervalSince1970];
     
-    // Verifica se o botão de aumentar volume foi pressionado recentemente (menos de 1 segundo)
-    if (g_volume_up_time != 0 && nowtime - g_volume_up_time < 1) {
-        // Se temos uma combinação de teclas, mostramos o menu
+    // Detector de combinação de teclas - verifica por um período menor (0.8s)
+    if (g_volume_up_time != 0 && nowtime - g_volume_up_time < 0.8) {
         UIWindow *keyWindow = getKeyWindow();
         if (keyWindow && keyWindow.rootViewController) {
             showMenuAlert(keyWindow.rootViewController);
+            
+            // Reseta imediatamente após mostrar o menu para evitar acionamentos acidentais
+            g_volume_up_time = 0;
+            g_volume_down_time = 0;
+            
+            // Não executa o comportamento original para evitar alterar o volume ao mostrar o menu
+            return;
         }
     }
     
@@ -722,32 +664,27 @@ static UIWindow* getKeyWindow() {
 }
 %end
 
-// Observer para notificações Darwin - detecta mudanças de outros processos
-static int notificationToken = 0;
+// Observer para notificações Darwin
 static void observeTweakState() {
-    // Registra para receber notificações
     int status = notify_register_dispatch(
         NOTIFICATION_BURLADOR_ACTIVATION,
-        &notificationToken,
+        &g_notificationObserverToken,
         dispatch_get_main_queue(),
         ^(int token) {
-            // Quando recebe uma notificação, sincroniza o estado
             uint64_t state = 0;
             notify_get_state(token, &state);
             BOOL newState = (state == 1);
             
-            // Log para verificação
             writeLog(@"[Observer] Recebeu notificação - Estado: %@", newState ? @"ATIVADO" : @"DESATIVADO");
             
-            // Atualiza estado local sem enviar nova notificação (para evitar loop)
+            // Atualiza estado local sem enviar nova notificação
             if (g_tweakEnabled != newState) {
                 g_tweakEnabled = newState;
                 
-                // Atualiza visibilidade das camadas
+                // Atualiza visibilidade
                 if (g_maskLayer) g_maskLayer.opacity = newState ? 1.0 : 0.0;
                 if (g_previewLayer) g_previewLayer.opacity = newState ? 1.0 : 0.0;
                 
-                // Força recarregamento se necessário
                 if (newState) {
                     g_bufferReload = YES;
                 }
@@ -760,7 +697,7 @@ static void observeTweakState() {
     }
 }
 
-// Função chamada quando o tweak é carregado
+// Inicialização do tweak
 %ctor {
     writeLog(@"--------------------------------------------------");
     writeLog(@"iOS-VCAM - Inicializando tweak");
@@ -770,29 +707,29 @@ static void observeTweakState() {
         %init(VolumeControl = NSClassFromString(@"SBVolumeControl"));
     }
     
-    // Inicializa recursos globais
+    // Inicializa recursos
     g_fileManager = [NSFileManager defaultManager];
     
-    // Registra como observador de notificações Darwin para sincronizar estado entre processos
+    // Registra como observador de notificações
     observeTweakState();
     
-    // Verifica o estado atual via Darwin Notifications
+    // Verifica estado atual
     checkTweakState();
     
     writeLog(@"Processo atual: %@", [NSProcessInfo processInfo].processName);
     writeLog(@"Tweak inicializado com sucesso com estado: %@", g_tweakEnabled ? @"ATIVADO" : @"DESATIVADO");
 }
 
-// Função chamada quando o tweak é descarregado
+// Finalização do tweak
 %dtor {
     writeLog(@"iOS-VCAM - Finalizando tweak");
     
     // Desregistra das notificações
-    if (notificationToken != 0) {
-        notify_cancel(notificationToken);
+    if (g_notificationObserverToken != 0) {
+        notify_cancel(g_notificationObserverToken);
     }
     
-    // Libera recursos antes de descarregar
+    // Libera recursos
     g_fileManager = nil;
     g_previewLayer = nil;
     g_maskLayer = nil;

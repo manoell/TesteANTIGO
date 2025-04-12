@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// Uma única função de log simples
+// Função de log simples
 void writeLog(NSString *format, ...);
 
 #ifdef __cplusplus

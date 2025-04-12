@@ -18,7 +18,7 @@ const CONFIG = {
   MAX_BITRATE: 50000, // 50Mbps para WiFi 5GHz
   H264_PROFILE: '640032', // High profile, Level 5.0 (4K suporte)
   TARGET_RESOLUTION: '3840x2160', // 4K UHD
-  TARGET_FRAMERATE: 60,
+  TARGET_FRAMERATE: 30,
   DEFAULT_ROOM: 'ios-camera',
   PING_INTERVAL: 5000, // 5 segundos para detectar desconexões rapidamente
   CLEANUP_INTERVAL: 10000, // 10 segundos para limpeza de salas

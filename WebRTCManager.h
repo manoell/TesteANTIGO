@@ -55,6 +55,9 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 // Similar ao método do GetFrame no código baseSubstituicao.txt
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew;
 
+- (CMSampleBufferRef)createSampleBufferFromCVPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                                     originSampleBuffer:(CMSampleBufferRef)originSampleBuffer;
+
 // Retorna estatísticas sobre a conexão atual
 - (NSDictionary *)getConnectionStats;
 

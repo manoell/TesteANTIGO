@@ -1044,7 +1044,7 @@
     }
     
     // Determinar o formato do buffer
-    OSType targetFormat = kCVPixelFormatType_32BGRA;
+    OSType targetFormat = kCVPixelFormatType_32BGRA; // Formato padrão
     if (originSampleBuffer) {
         CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
         if (imageBuffer) {
@@ -1064,6 +1064,15 @@
         lastFrame = self.frameCaptor.lastCapturedFrame;
         i420Buffer = self.frameCaptor.lastI420Buffer;
         cvPixelBuffer = self.frameCaptor.lastCVPixelBuffer;
+        
+        // Se não temos buffer I420 diretamente, mas temos frame, tentar converter
+        if (!i420Buffer && lastFrame) {
+            i420Buffer = [lastFrame.buffer toI420];
+            if (shouldLog && i420Buffer) {
+                writeLog(@"[WebRTCManager] Convertido buffer do frame para I420: %dx%d",
+                        i420Buffer.width, i420Buffer.height);
+            }
+        }
     }
     
     if (!lastFrame) {
@@ -1073,34 +1082,109 @@
         return [self createTestPatternBuffer:640 height:480 format:targetFormat];
     }
     
-    // Temos um CVPixelBuffer? Usar diretamente
+    // Primeiro, vamos tentar usar um CVPixelBuffer diretamente se disponível
+    CMSampleBufferRef resultBuffer = NULL;
+    
     if (cvPixelBuffer && cvPixelBuffer.pixelBuffer) {
-        CMSampleBufferRef sampleBuffer = [self createSampleBufferFromCVPixelBuffer:cvPixelBuffer.pixelBuffer
-                                                          originSampleBuffer:originSampleBuffer];
-        if (sampleBuffer) {
-            return sampleBuffer;
+        resultBuffer = [self createSampleBufferFromCVPixelBuffer:cvPixelBuffer.pixelBuffer
+                                             originSampleBuffer:originSampleBuffer];
+        if (resultBuffer) {
+            if (shouldLog) {
+                writeLog(@"[WebRTCManager] Sucesso usando CVPixelBuffer direto");
+            }
+            return resultBuffer;
         }
     }
     
-    // Temos um I420Buffer? Converter para CVPixelBuffer
+    // Se não conseguimos usar CVPixelBuffer diretamente, tentar com I420Buffer
     if (i420Buffer) {
         // Criar um CVPixelBuffer a partir do I420Buffer
-        CVPixelBufferRef pixelBuffer = [self createCVPixelBufferFromI420:i420Buffer format:targetFormat];
-        if (pixelBuffer) {
-            CMSampleBufferRef sampleBuffer = [self createSampleBufferFromCVPixelBuffer:pixelBuffer
-                                                               originSampleBuffer:originSampleBuffer];
-            CVPixelBufferRelease(pixelBuffer);
-            if (sampleBuffer) {
-                return sampleBuffer;
+        CVPixelBufferRef newPixelBuffer = [self createCVPixelBufferFromI420:i420Buffer format:targetFormat];
+        if (newPixelBuffer) {
+            resultBuffer = [self createSampleBufferFromCVPixelBuffer:newPixelBuffer
+                                                 originSampleBuffer:originSampleBuffer];
+            CVPixelBufferRelease(newPixelBuffer);
+            
+            if (resultBuffer) {
+                if (shouldLog) {
+                    writeLog(@"[WebRTCManager] Sucesso convertendo de I420Buffer");
+                }
+                return resultBuffer;
             }
         }
     }
     
-    // Falhou em obter um buffer utilizável, vamos usar o padrão de teste
+    // Se tudo falhar, criar um padrão de teste com as dimensões do frame original
     if (shouldLog) {
-        writeLog(@"[WebRTCManager] Não foi possível processar o frame, usando padrão de teste");
+        writeLog(@"[WebRTCManager] Todas as conversões falharam, usando padrão de teste");
     }
-    return [self createTestPatternBuffer:lastFrame.width height:lastFrame.height format:targetFormat];
+    
+    int width = lastFrame ? lastFrame.width : 640;
+    int height = lastFrame ? lastFrame.height : 480;
+    return [self createTestPatternBuffer:width height:height format:targetFormat];
+}
+
+- (CMSampleBufferRef)createSampleBufferFromCVPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                                     originSampleBuffer:(CMSampleBufferRef)originSampleBuffer {
+    if (!pixelBuffer) {
+        writeLog(@"[WebRTCManager] createSampleBufferFromCVPixelBuffer: pixelBuffer é NULL");
+        return NULL;
+    }
+    
+    // Log detalhado do pixelBuffer
+    size_t width = CVPixelBufferGetWidth(pixelBuffer);
+    size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    OSType format = CVPixelBufferGetPixelFormatType(pixelBuffer);
+    
+    writeLog(@"[WebRTCManager] Criando CMSampleBuffer a partir de CVPixelBuffer %ldx%ld, formato: %d",
+             width, height, (int)format);
+    
+    // Criar descrição de formato
+    CMVideoFormatDescriptionRef videoInfo = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &videoInfo);
+    
+    if (status != noErr) {
+        writeLog(@"[WebRTCManager] Falha ao criar descrição de formato: %d", (int)status);
+        return NULL;
+    }
+    
+    // Obter timing info do buffer original ou criar um novo
+    CMSampleTimingInfo timing;
+    if (originSampleBuffer) {
+        timing.duration = CMSampleBufferGetDuration(originSampleBuffer);
+        timing.presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(originSampleBuffer);
+        timing.decodeTimeStamp = CMSampleBufferGetDecodeTimeStamp(originSampleBuffer);
+    } else {
+        timing.duration = CMTimeMake(1, 30);
+        timing.presentationTimeStamp = CMTimeMakeWithSeconds(CACurrentMediaTime(), 90000);
+        timing.decodeTimeStamp = kCMTimeInvalid;
+    }
+    
+    // Criar sample buffer
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        true,
+        NULL,
+        NULL,
+        videoInfo,
+        &timing,
+        &sampleBuffer);
+    
+    // Liberar recursos
+    CFRelease(videoInfo);
+    
+    if (status != noErr) {
+        writeLog(@"[WebRTCManager] Falha ao criar sample buffer: %d", (int)status);
+        return NULL;
+    }
+    
+    writeLog(@"[WebRTCManager] CMSampleBuffer criado com sucesso");
+    return sampleBuffer;
 }
 
 // Método para criar um buffer de teste com padrão visual para diagnóstico
@@ -1222,14 +1306,23 @@
 
 // Método auxiliar para criar um CVPixelBuffer a partir de um I420Buffer
 - (CVPixelBufferRef)createCVPixelBufferFromI420:(id<RTCI420Buffer>)i420Buffer format:(OSType)format {
+    if (!i420Buffer) {
+        writeLog(@"[WebRTCManager] createCVPixelBufferFromI420: buffer I420 é NULL");
+        return NULL;
+    }
+    
     int width = i420Buffer.width;
     int height = i420Buffer.height;
+    
+    writeLog(@"[WebRTCManager] Convertendo I420Buffer %dx%d para formato %d", width, height, (int)format);
     
     // Criar CVPixelBuffer
     CVPixelBufferRef pixelBuffer = NULL;
     NSDictionary *pixelAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey: @(format),
-        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{}
+        (NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{},
+        (NSString*)kCVPixelBufferOpenGLCompatibilityKey: @YES,
+        (NSString*)kCVPixelBufferMetalCompatibilityKey: @YES
     };
     
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
@@ -1246,7 +1339,7 @@
     CVPixelBufferLockBaseAddress(pixelBuffer, 0);
     
     if (format == kCVPixelFormatType_32BGRA) {
-        // Converter I420 para BGRA
+        // Convertendo I420 para BGRA
         uint8_t *dst = CVPixelBufferGetBaseAddress(pixelBuffer);
         size_t dstStride = CVPixelBufferGetBytesPerRow(pixelBuffer);
         
@@ -1257,8 +1350,25 @@
         int srcStrideU = i420Buffer.strideU;
         int srcStrideV = i420Buffer.strideV;
         
-        // Esta seria a conversão I420 para BGRA
-        // Versão simplificada para ilustração - usando libyuv ou vImage seria melhor
+        // Usar uma tabela de consulta para conversão YUV -> RGB para maior eficiência
+        static int16_t yTable[256], uVTable[256][256][2];
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            for (int y = 0; y < 256; y++) {
+                yTable[y] = (int16_t)((y - 16) * 1.164 * 64);
+            }
+            
+            for (int u = 0; u < 256; u++) {
+                for (int v = 0; v < 256; v++) {
+                    int uu = u - 128;
+                    int vv = v - 128;
+                    uVTable[u][v][0] = (int16_t)(2.017 * uu * 64);        // U -> B
+                    uVTable[u][v][1] = (int16_t)(1.596 * vv * 64);        // V -> R
+                }
+            }
+        });
+        
+        // Conversão YUV -> RGB otimizada com tabelas de consulta
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int yIndex = y * srcStrideY + x;
@@ -1266,30 +1376,37 @@
                 int vIndex = (y / 2) * srcStrideV + (x / 2);
                 
                 int Y = srcY[yIndex];
-                int U = srcU[uIndex] - 128;
-                int V = srcV[vIndex] - 128;
+                int U = srcU[uIndex];
+                int V = srcV[vIndex];
                 
-                // Conversão YUV -> RGB
-                int R = Y + 1.402 * V;
-                int G = Y - 0.344 * U - 0.714 * V;
-                int B = Y + 1.772 * U;
+                int yComp = yTable[Y];
+                int uComp = uVTable[U][V][0];
+                int vComp = uVTable[U][V][1];
+                
+                // Componentes RGB
+                int b = (yComp + uComp) >> 6;
+                int g = (yComp - ((108 * (U-128) + 100 * (V-128)) >> 8)) >> 6;
+                int r = (yComp + vComp) >> 6;
                 
                 // Clamp para 0-255
-                R = (R < 0) ? 0 : ((R > 255) ? 255 : R);
-                G = (G < 0) ? 0 : ((G > 255) ? 255 : G);
-                B = (B < 0) ? 0 : ((B > 255) ? 255 : B);
+                b = (b < 0) ? 0 : ((b > 255) ? 255 : b);
+                g = (g < 0) ? 0 : ((g > 255) ? 255 : g);
+                r = (r < 0) ? 0 : ((r > 255) ? 255 : r);
                 
                 // Escrever no buffer BGRA
                 int destIdx = y * dstStride + x * 4;
-                dst[destIdx + 0] = B;  // B
-                dst[destIdx + 1] = G;  // G
-                dst[destIdx + 2] = R;  // R
+                dst[destIdx + 0] = b;  // B
+                dst[destIdx + 1] = g;  // G
+                dst[destIdx + 2] = r;  // R
                 dst[destIdx + 3] = 255; // A
             }
         }
-    } else if (format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
-               format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
-        // Converter I420 para NV12/NV21
+        
+        writeLog(@"[WebRTCManager] Conversão para BGRA concluída");
+    }
+    else if (format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange ||
+             format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+        // Converter I420 para NV12/NV21 (BiPlanar)
         uint8_t *dstY = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
         uint8_t *dstUV = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
         
@@ -1315,10 +1432,16 @@
                 dstUV[y * dstStrideUV + x * 2 + 1] = srcV[y * srcStrideV + x];
             }
         }
+        
+        writeLog(@"[WebRTCManager] Conversão para formato BiPlanar concluída");
+    } else {
+        writeLog(@"[WebRTCManager] Formato pixel não suportado: %d", (int)format);
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
     }
     
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
-    
     return pixelBuffer;
 }
 

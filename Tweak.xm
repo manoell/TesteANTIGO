@@ -1,6 +1,5 @@
 #import "FloatingWindow.h"
 #import "logger.h"
-#import "DarwinNotifications.h"
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
@@ -37,6 +36,29 @@ static CALayer *g_maskLayer = nil;
 static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationPortrait;
 static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait;
 static NSString *g_serverIP = @"192.168.0.178";
+static BOOL g_cameraRunning = NO;
+static BOOL g_isSubstitutionActive = NO;
+
+// Garantir que as variáveis globais estejam inicializadas corretamente
+static void initializeGlobalVariables() {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        writeLog(@"Inicializando variáveis globais para substituição de câmera");
+        
+        // Verificar e inicializar o frameProvider
+        if (g_frameProvider == nil) {
+            g_frameProvider = [WebRTCFrameProvider sharedInstance];
+            writeLog(@"g_frameProvider inicializado: %@", g_frameProvider ? @"OK" : @"FALHA");
+        }
+        
+        // Verificar estado do burlador ao iniciar
+        BOOL burladorActive = g_isSubstitutionActive;
+        writeLog(@"Estado inicial do burlador: %@", burladorActive ? @"ATIVO" : @"INATIVO");
+        
+        // Resetar para garantir estado inicial consistente
+        g_isSubstitutionActive = NO;
+    });
+}
 
 #pragma mark - WebRTCFrameProvider Implementation
 
@@ -581,8 +603,9 @@ static NSString *g_serverIP = @"192.168.0.178";
         _isSubstitutionActive = active;
         writeLog(@"[WebRTCFrameProvider] Substituição %@", active ? @"ativada" : @"desativada");
         
-        // Registrar estado via Darwin Notifications
-        registerBurladorActive(active);
+        // Substituir a chamada de registerBurladorActive por uma atribuição direta à variável global
+        g_isSubstitutionActive = active;
+        writeLog(@"[Global] Estado do burlador alterado para: %@", active ? @"ATIVO" : @"INATIVO");
         
         // Iniciar ou parar WebRTC conforme o estado
         if (active && !self.peerConnection) {
@@ -601,7 +624,7 @@ static NSString *g_serverIP = @"192.168.0.178";
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
     // Incrementar contador para controle de log
     _frameCounter++;
-    BOOL shouldLog = (_frameCounter % 300 == 0);
+    BOOL shouldLog = (_frameCounter % 100 == 0); // Aumentei a frequência de log para debug
     
     if (shouldLog) {
         writeLog(@"[WebRTCFrameProvider] getCurrentFrame (#%d) - %@",
@@ -613,89 +636,107 @@ static NSString *g_serverIP = @"192.168.0.178";
         return originSampleBuffer;
     }
     
-    // Verificar se temos frames disponíveis
-    if (!self.isReceivingFrames) {
+    // Verificar se temos frames disponíveis e conexão ativa
+    if (!self.isReceivingFrames || !self.videoTrack) {
         NSTimeInterval currentTime = CACurrentMediaTime();
         if (!_hasLoggedFrameError || (currentTime - _lastErrorLogTime) > 2.0) {
-            writeLog(@"[WebRTCFrameProvider] Sem frames para substituição");
+            writeLog(@"[WebRTCFrameProvider] Sem frames para substituição (isReceivingFrames: %d, videoTrack: %@)",
+                   self.isReceivingFrames, self.videoTrack ? @"OK" : @"NULL");
             _hasLoggedFrameError = YES;
             _lastErrorLogTime = currentTime;
         }
-        return originSampleBuffer;
+        return originSampleBuffer; // Retorna buffer original se não temos frames
     }
     
     // Obter o formato do buffer original
     OSType targetFormat = kCVPixelFormatType_32BGRA; // Formato padrão
+    CVImageBufferRef originalImageBuffer = NULL;
+    
     if (originSampleBuffer) {
-        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
-        if (imageBuffer) {
-            targetFormat = CVPixelBufferGetPixelFormatType(imageBuffer);
+        originalImageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
+        if (originalImageBuffer) {
+            targetFormat = CVPixelBufferGetPixelFormatType(originalImageBuffer);
             if (shouldLog) {
                 writeLog(@"[WebRTCFrameProvider] Formato do buffer original: %d", (int)targetFormat);
             }
         }
     }
     
-    // Obter dados do frame atual
-    RTCVideoFrame *frame;
-    RTCCVPixelBuffer *cvPixelBuffer;
-    id<RTCI420Buffer> i420Buffer;
-    
+    // Tentar obter frame do WebRTC - Primeiro RTCCVPixelBuffer (mais direto)
     @synchronized(self) {
-        frame = _lastCapturedFrame;
-        cvPixelBuffer = _lastCVPixelBuffer;
-        i420Buffer = _lastI420Buffer;
-    }
-    
-    if (!frame) {
-        if (shouldLog) {
-            writeLog(@"[WebRTCFrameProvider] Nenhum frame disponível");
-        }
-        return originSampleBuffer;
-    }
-    
-    // Tentar usar CVPixelBuffer diretamente
-    if (cvPixelBuffer && cvPixelBuffer.pixelBuffer) {
-        CVPixelBufferRef pixelBuffer = cvPixelBuffer.pixelBuffer;
-        
-        // Verificar formato e converter se necessário
-        OSType currentFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
-        
-        if (currentFormat != targetFormat) {
+        if (_lastCVPixelBuffer && _lastCVPixelBuffer.pixelBuffer) {
+            CVPixelBufferRef pixelBuffer = _lastCVPixelBuffer.pixelBuffer;
+            
+            // Debug info
             if (shouldLog) {
-                writeLog(@"[WebRTCFrameProvider] Convertendo formato de pixel %d para %d",
-                        (int)currentFormat, (int)targetFormat);
+                writeLog(@"[WebRTCFrameProvider] Usando CVPixelBuffer direto: %dx%d, formato %d",
+                        (int)CVPixelBufferGetWidth(pixelBuffer),
+                        (int)CVPixelBufferGetHeight(pixelBuffer),
+                        (int)CVPixelBufferGetPixelFormatType(pixelBuffer));
             }
             
-            // Converter para o formato alvo
-            CVPixelBufferRef convertedBuffer = [self convertPixelBuffer:pixelBuffer toFormat:targetFormat];
-            if (convertedBuffer) {
-                CMSampleBufferRef newBuffer = [self createSampleBufferFromPixelBuffer:convertedBuffer
+            // Verificar se o formato corresponde ao alvo
+            OSType currentFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+            
+            // Converter para o formato alvo se necessário
+            if (currentFormat != targetFormat) {
+                CVPixelBufferRef convertedBuffer = [self convertPixelBuffer:pixelBuffer toFormat:targetFormat];
+                if (convertedBuffer) {
+                    CMSampleBufferRef newBuffer = [self createSampleBufferFromPixelBuffer:convertedBuffer
                                                                   originSampleBuffer:originSampleBuffer];
-                CVPixelBufferRelease(convertedBuffer);
-                return newBuffer;
+                    CVPixelBufferRelease(convertedBuffer);
+                    if (newBuffer) {
+                        if (shouldLog) {
+                            writeLog(@"[WebRTCFrameProvider] Frame convertido com sucesso");
+                        }
+                        return newBuffer;
+                    }
+                }
+            } else {
+                // Mesmo formato, criar diretamente
+                CMSampleBufferRef newBuffer = [self createSampleBufferFromPixelBuffer:pixelBuffer
+                                                               originSampleBuffer:originSampleBuffer];
+                if (newBuffer) {
+                    if (shouldLog) {
+                        writeLog(@"[WebRTCFrameProvider] Frame criado sem conversão");
+                    }
+                    return newBuffer;
+                }
             }
-        } else {
-            // Mesmo formato, não precisa converter
-            return [self createSampleBufferFromPixelBuffer:pixelBuffer
-                                       originSampleBuffer:originSampleBuffer];
+        }
+        
+        // Alternativa: usar I420Buffer
+        if (_lastI420Buffer) {
+            if (shouldLog) {
+                writeLog(@"[WebRTCFrameProvider] Tentando usar I420Buffer: %dx%d",
+                       (int)_lastI420Buffer.width, (int)_lastI420Buffer.height);
+            }
+            
+            CVPixelBufferRef newPixelBuffer = [self createCVPixelBufferFromI420:_lastI420Buffer format:targetFormat];
+            if (newPixelBuffer) {
+                CMSampleBufferRef resultBuffer = [self createSampleBufferFromPixelBuffer:newPixelBuffer
+                                                                originSampleBuffer:originSampleBuffer];
+                CVPixelBufferRelease(newPixelBuffer);
+                
+                if (resultBuffer) {
+                    if (shouldLog) {
+                        writeLog(@"[WebRTCFrameProvider] Frame criado de I420Buffer");
+                    }
+                    return resultBuffer;
+                }
+            }
         }
     }
     
-    // Se não conseguimos usar CVPixelBuffer, tentar com I420Buffer
-    if (i420Buffer) {
-        CVPixelBufferRef newPixelBuffer = [self createCVPixelBufferFromI420:i420Buffer format:targetFormat];
-        if (newPixelBuffer) {
-            CMSampleBufferRef resultBuffer = [self createSampleBufferFromPixelBuffer:newPixelBuffer
-                                                                 originSampleBuffer:originSampleBuffer];
-            CVPixelBufferRelease(newPixelBuffer);
-            return resultBuffer;
-        }
+    // Último recurso: se temos um frame capturado mas não conseguimos convertê-lo
+    if (_lastCapturedFrame && shouldLog) {
+        writeLog(@"[WebRTCFrameProvider] Temos frame mas falha na conversão: %dx%d",
+                (int)_lastCapturedFrame.width, (int)_lastCapturedFrame.height);
     }
     
     // Se tudo falhar, retornar o buffer original
     if (shouldLog) {
-        writeLog(@"[WebRTCFrameProvider] Falha na conversão, retornando buffer original");
+        writeLog(@"[WebRTCFrameProvider] Retornando buffer original");
     }
     return originSampleBuffer;
 }
@@ -735,6 +776,8 @@ static NSString *g_serverIP = @"192.168.0.178";
     
     int width = i420Buffer.width;
     int height = i420Buffer.height;
+    
+    writeLog(@"[WebRTCFrameProvider] Convertendo I420Buffer %dx%d para formato %d", width, height, (int)format);
     
     // Criar CVPixelBuffer
     CVPixelBufferRef pixelBuffer = NULL;
@@ -834,6 +877,11 @@ static NSString *g_serverIP = @"192.168.0.178";
                 dstUV[y * dstStrideUV + x * 2 + 1] = srcV[y * srcStrideV + x];
             }
         }
+    } else {
+        writeLog(@"[WebRTCFrameProvider] Formato pixel não suportado: %d", (int)format);
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
     }
     
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
@@ -1094,19 +1142,25 @@ static NSString *g_serverIP = @"192.168.0.178";
 
 // Método adicionado para atualização contínua do preview
 %new
--(void)step:(CADisplayLink *)sender {
-    // Verificar estado do burlador via Darwin Notifications
-    BOOL isSubstitutionActive = isBurladorActive();
+-(void)step:(CADisplayLink *)sender{
+    // Usar a variável global em vez da função isBurladorActive
+    BOOL isSubstitutionActive = g_isSubstitutionActive;
     
     // Cache de verificação para evitar sobrecarga
     static NSTimeInterval lastLogTime = 0;
     NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970];
+    static int frameCounter = 0;
     
-    if (currentTime - lastLogTime > 3.0) { // Log a cada 3 segundos
-        writeLog(@"[step] Estado burlador: %@, camadas: mask=%@, preview=%@",
+    // Log a cada 3 segundos ou a cada 100 frames, o que ocorrer primeiro
+    BOOL shouldLog = (currentTime - lastLogTime > 3.0) || (++frameCounter % 100 == 0);
+    
+    if (shouldLog) {
+        writeLog(@"[step] Estado burlador: %@, camadas: mask=%@, preview=%@, contador=%d, global=%d",
                 isSubstitutionActive ? @"ATIVO" : @"INATIVO",
                 g_maskLayer ? @"OK" : @"NULL",
-                g_previewLayer ? @"OK" : @"NULL");
+                g_previewLayer ? @"OK" : @"NULL",
+                frameCounter,
+                g_isSubstitutionActive);
         lastLogTime = currentTime;
     }
     
@@ -1155,6 +1209,8 @@ static NSString *g_serverIP = @"192.168.0.178";
         if (g_photoOrientation != g_lastOrientation) {
             g_lastOrientation = g_photoOrientation;
             
+            writeLog(@"[step] Atualizando orientação para: %d", (int)g_photoOrientation);
+            
             switch(g_photoOrientation) {
                 case AVCaptureVideoOrientationPortrait:
                 case AVCaptureVideoOrientationPortraitUpsideDown:
@@ -1169,29 +1225,58 @@ static NSString *g_serverIP = @"192.168.0.178";
                 default:
                     g_previewLayer.transform = self.transform;
             }
-            
-            writeLog(@"[step] Orientação atualizada: %d", (int)g_photoOrientation);
         }
-        
+
         // Tentar obter frame para preview apenas se estiver pronto para receber mais dados
         if (g_previewLayer.readyForMoreMediaData) {
-            // Obtém o próximo frame
-            CMSampleBufferRef newBuffer = [g_frameProvider getCurrentFrame:nil forceReNew:YES];
-            
-            if (newBuffer != nil) {
-                // Limpa quaisquer frames na fila
-                [g_previewLayer flush];
+            // Verificar se WebRTCFrameProvider está disponível
+            if (g_frameProvider) {
+                // Obtém o próximo frame
+                CMSampleBufferRef newBuffer = nil;
                 
-                // Adiciona o novo frame
-                [g_previewLayer enqueueSampleBuffer:newBuffer];
-                
-                // Log ocasional para confirmar que frames estão sendo adicionados
-                static int frameCount = 0;
-                if (++frameCount % 100 == 0) { // Log a cada 100 frames
-                    writeLog(@"[step] Frame #%d adicionado", frameCount);
+                // Verificar o tipo de chamada para tentar obter um frame manualmente
+                @try {
+                    newBuffer = [g_frameProvider getCurrentFrame:nil forceReNew:YES];
+                } @catch (NSException *exception) {
+                    writeLog(@"[step] Erro ao obter frame: %@", exception);
                 }
+                
+                // Log mais frequente para frames
+                if (shouldLog) {
+                    writeLog(@"[step] Tentativa de obter frame: %@", newBuffer ? @"Sucesso" : @"Falha");
+                }
+                
+                if (newBuffer != nil) {
+                    // Limpa quaisquer frames na fila
+                    [g_previewLayer flush];
+                    
+                    // Adiciona o novo frame
+                    [g_previewLayer enqueueSampleBuffer:newBuffer];
+                    
+                    // Log ocasional para confirmar que frames estão sendo adicionados
+                    if (shouldLog) {
+                        writeLog(@"[step] Frame adicionado à camada");
+                        
+                        // Analisar o buffer para debug
+                        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(newBuffer);
+                        if (imageBuffer) {
+                            size_t width = CVPixelBufferGetWidth(imageBuffer);
+                            size_t height = CVPixelBufferGetHeight(imageBuffer);
+                            OSType format = CVPixelBufferGetPixelFormatType(imageBuffer);
+                            writeLog(@"[step] Detalhes do buffer: %zux%zu, formato: %d", width, height, (int)format);
+                        }
+                    }
+                } else if (shouldLog) {
+                    writeLog(@"[step] Não foi possível obter um frame para exibição");
+                }
+            } else if (shouldLog) {
+                writeLog(@"[step] g_frameProvider não está disponível para fornecer frames");
             }
+        } else if (shouldLog) {
+            writeLog(@"[step] g_previewLayer não está pronto para mais dados");
         }
+    } else if (shouldLog) {
+        writeLog(@"[step] g_previewLayer é NULL, não é possível exibir frames");
     }
 }
 %end
@@ -1201,25 +1286,29 @@ static NSString *g_serverIP = @"192.168.0.178";
 // Método chamado quando a câmera é iniciada
 -(void) startRunning {
     writeLog(@"AVCaptureSession::startRunning - Câmera iniciando");
+    g_cameraRunning = YES;
     %orig;
 }
 
 // Método chamado quando a câmera é parada
 -(void) stopRunning {
     writeLog(@"AVCaptureSession::stopRunning - Câmera parando");
+    g_cameraRunning = NO;
     %orig;
 }
 %end
 
 // Hook para interceptação do fluxo de vídeo em tempo real
 %hook AVCaptureVideoDataOutput
-- (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue {
+- (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue{
     writeLog(@"AVCaptureVideoDataOutput::setSampleBufferDelegate - Delegate: %@, Queue: %@", sampleBufferDelegate, sampleBufferCallbackQueue);
     
-    // Verificações de segurança
+    // MODIFICAÇÃO: Em vez de retornar cedo se o delegate for nulo,
+    // vamos ainda assim executar o método original para manter o comportamento padrão
     if (sampleBufferDelegate == nil || sampleBufferCallbackQueue == nil) {
-        writeLog(@"Delegate ou queue nulos, chamando método original sem modificações");
-        return %orig;
+        writeLog(@"Delegate ou queue nulos, chamando método original");
+        %orig;
+        return;
     }
     
     // Lista para controlar quais classes já foram "hooked"
@@ -1231,6 +1320,7 @@ static NSString *g_serverIP = @"192.168.0.178";
     
     // Obtém o nome da classe do delegate
     NSString *className = NSStringFromClass([sampleBufferDelegate class]);
+    writeLog(@"Verificando classe do delegate: %@", className);
     
     // Verifica se esta classe já foi "hooked"
     if (![hooked containsObject:className]) {
@@ -1240,56 +1330,84 @@ static NSString *g_serverIP = @"192.168.0.178";
         // Hook para o método que recebe cada frame de vídeo
         __block void (*original_method)(id self, SEL _cmd, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection) = nil;
         
-        // Hook do método de recebimento de frames
-        MSHookMessageEx(
-            [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
-            imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection){
-                // Verificação CRUCIAL: Obter o status do burlador via Darwin Notifications
-                BOOL isSubstitutionActive = isBurladorActive();
-                
-                // Atualiza orientação para uso no step:
-                g_photoOrientation = [connection videoOrientation];
-                
-                // Log ocasional
-                static int callCount = 0;
-                if (++callCount % 300 == 0) {
-                    writeLog(@"[captureOutput] Frame #%d, substituição: %@, orientação: %d",
-                            callCount,
-                            isSubstitutionActive ? @"ATIVA" : @"INATIVA",
-                            (int)g_photoOrientation);
-                }
-                
-                // Verificar se temos WebRTCFrameProvider e se burlador está ativo
-                if (isSubstitutionActive && g_frameProvider) {
-                    // Obtém um frame do WebRTC para substituir o buffer
-                    CMSampleBufferRef newBuffer = [g_frameProvider getCurrentFrame:sampleBuffer forceReNew:NO];
+        // Verifica se o método existe na classe delegate antes de fazer o hook
+        if ([sampleBufferDelegate respondsToSelector:@selector(captureOutput:didOutputSampleBuffer:fromConnection:)]) {
+            // Hook do método de recebimento de frames
+            MSHookMessageEx(
+                [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection){
+                    // Verificação CRUCIAL: Obter o status do burlador via Darwin Notifications
+                    BOOL isSubstitutionActive = g_isSubstitutionActive;
                     
-                    // Atualiza o preview usando o buffer obtido
-                    if (newBuffer != nil && g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
-                        [g_previewLayer flush];
-                        [g_previewLayer enqueueSampleBuffer:newBuffer];
+                    // Atualiza orientação para uso no step:
+                    g_photoOrientation = [connection videoOrientation];
+                    
+                    // Log ocasional
+                    static int callCount = 0;
+                    if (++callCount % 300 == 0) {
+                        writeLog(@"[captureOutput] Frame #%d, substituição: %@, orientação: %d",
+                                callCount,
+                                isSubstitutionActive ? @"ATIVA" : @"INATIVA",(int)g_photoOrientation);
+                    }
+                    
+                    // Verificar se temos WebRTCFrameProvider e se burlador está ativo
+                    if (isSubstitutionActive && g_frameProvider) {
+                        // Adicionar log para debug
+                        if (callCount % 300 == 0) {
+                            writeLog(@"[captureOutput] Tentando obter frame do WebRTCFrameProvider");
+                        }
+                        
+                        // Obtém um frame do WebRTC para substituir o buffer
+                        CMSampleBufferRef newBuffer = [g_frameProvider getCurrentFrame:sampleBuffer forceReNew:NO];
+                        
+                        // Atualiza o preview usando o buffer obtido
+                        if (newBuffer != nil && g_previewLayer != nil && g_previewLayer.readyForMoreMediaData) {
+                            [g_previewLayer flush];
+                            [g_previewLayer enqueueSampleBuffer:newBuffer];
+                            
+                            // Log detalhado a cada 300 frames
+                            if (callCount % 300 == 0) {
+                                writeLog(@"[captureOutput] Preview atualizado com frame");
+                            }
+                        } else if (callCount % 300 == 0) {
+                            writeLog(@"[captureOutput] Não foi possível atualizar preview - buffer: %@, layer: %@, ready: %d",
+                                    newBuffer ? @"OK" : @"NULL",
+                                    g_previewLayer ? @"OK" : @"NULL",
+                                    g_previewLayer ? g_previewLayer.readyForMoreMediaData : -1);
+                        }
+                        
+                        // Chama o método original com o buffer substituído
+                        CMSampleBufferRef bufferToUse = newBuffer != nil ? newBuffer : sampleBuffer;
                         
                         // Log detalhado a cada 300 frames
                         if (callCount % 300 == 0) {
-                            writeLog(@"[captureOutput] Preview atualizado com frame");
+                            // Analisar o buffer para debug
+                            if (newBuffer != nil) {
+                                CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(newBuffer);
+                                if (imageBuffer) {
+                                    size_t width = CVPixelBufferGetWidth(imageBuffer);
+                                    size_t height = CVPixelBufferGetHeight(imageBuffer);
+                                    OSType format = CVPixelBufferGetPixelFormatType(imageBuffer);
+                                    writeLog(@"[captureOutput] Substituição de buffer: SIM (%zux%zu, formato: %d)",
+                                          width, height, (int)format);
+                                } else {
+                                    writeLog(@"[captureOutput] Substituição de buffer: SIM (sem ImageBuffer)");
+                                }
+                            } else {
+                                writeLog(@"[captureOutput] Substituição de buffer: NÃO (usando original)");
+                            }
                         }
+                        
+                        return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, bufferToUse, connection);
                     }
                     
-                    // Chama o método original com o buffer substituído
-                    CMSampleBufferRef bufferToUse = newBuffer != nil ? newBuffer : sampleBuffer;
-                    
-                    // Log detalhado a cada 300 frames
-                    if (callCount % 300 == 0) {
-                        writeLog(@"[captureOutput] Substituição de buffer: %@", newBuffer != nil ? @"SIM" : @"NÃO");
-                    }
-                    
-                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, bufferToUse, connection);
-                }
-                
-                // Se não há substituição ativa, usa o buffer original
-                return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, sampleBuffer, connection);
-            }), (IMP*)&original_method
-        );
+                    // Se não há substituição ativa, usa o buffer original
+                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, sampleBuffer, connection);
+                }), (IMP*)&original_method
+            );
+        } else {
+            writeLog(@"[captureOutput] Delegate não implementa o método 'captureOutput:didOutputSampleBuffer:fromConnection:'");
+        }
     }
     
     // Chama o método original
@@ -1304,7 +1422,7 @@ static NSString *g_serverIP = @"192.168.0.178";
     writeLog(@"Tweak carregado em SpringBoard");
     
     // Inicializar o sistema de Darwin Notifications
-    registerBurladorActive(NO); // Inicialmente desativado
+    g_isSubstitutionActive = NO;
     
     // Inicializar o provedor de frames
     g_frameProvider = [WebRTCFrameProvider sharedInstance];
@@ -1326,13 +1444,13 @@ static NSString *g_serverIP = @"192.168.0.178";
 
 // Modificação do FloatingWindow para trabalhar diretamente com o WebRTCFrameProvider
 %hook FloatingWindow
-
-// Substitui o método toggleSubstitution para usar o WebRTCFrameProvider
 - (void)toggleSubstitution:(UIButton *)sender {
-    writeLog(@"FloatingWindow::toggleSubstitution - Alterando estado do burlador");
+    // Adicionar log detalhado para debug
+    writeLog(@"[Hook] FloatingWindow::toggleSubstitution - Hook ativado");
     
     // Pega o estado atual do burlador (contrário do atual)
     BOOL newState = !self.isSubstitutionActive;
+    writeLog(@"[Hook] Alterando estado do burlador para: %@", newState ? @"ATIVO" : @"INATIVO");
     
     // Atualiza a propriedade isSubstitutionActive
     self.isSubstitutionActive = newState;
@@ -1360,11 +1478,18 @@ static NSString *g_serverIP = @"192.168.0.178";
     // Atualiza o ícone na versão minimizada
     [self updateMinimizedIconWithState];
     
+    // Verificar se g_frameProvider está disponível
+    if (g_frameProvider == nil) {
+        writeLog(@"[Hook] ERRO: g_frameProvider é nil, tentando inicializar");
+        g_frameProvider = [WebRTCFrameProvider sharedInstance];
+    }
+    
     // Chama o WebRTCFrameProvider para ativar/desativar o burlador
-    if (g_frameProvider) {
+    if (g_frameProvider != nil) {
+        writeLog(@"[Hook] Chamando setSubstitutionActive: %@", newState ? @"ATIVO" : @"INATIVO");
         [g_frameProvider setSubstitutionActive:newState];
     } else {
-        writeLog(@"FloatingWindow::toggleSubstitution - ERRO: g_frameProvider é nil");
+        writeLog(@"[Hook] ERRO CRÍTICO: g_frameProvider ainda é nil após tentativa de inicialização");
     }
 }
 
@@ -1375,50 +1500,6 @@ static NSString *g_serverIP = @"192.168.0.178";
     } else {
         [self startPreview];
     }
-}
-
-// Adiciona método para iniciar preview
-%new
-- (void)startPreview {
-    // Verificar se o burlador está ativo
-    if (!self.isSubstitutionActive) {
-        writeLog(@"[FloatingWindow] Não é possível ativar preview sem o burlador ativo");
-        return;
-    }
-    
-    self.isPreviewActive = YES;
-    [self.toggleButton setTitle:@"Desativar Preview" forState:UIControlStateNormal];
-    self.toggleButton.backgroundColor = [UIColor redColor]; // Vermelho quando ativo
-    
-    // Mostrar indicador de carregamento
-    [self.loadingIndicator startAnimating];
-    
-    // Expandir se estiver minimizado
-    if (self.windowState == FloatingWindowStateMinimized) {
-        [self setWindowState:FloatingWindowStateExpanded];
-    }
-    
-    // Parar indicador de carregamento quando o preview estiver ativo
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self.loadingIndicator stopAnimating];
-    });
-    
-    writeLog(@"[FloatingWindow] Preview ativado");
-}
-
-// Implementa o método para parar o preview
-%new
-- (void)stopPreview {
-    if (!self.isPreviewActive) return;
-    
-    self.isPreviewActive = NO;
-    [self.toggleButton setTitle:@"Ativar Preview" forState:UIControlStateNormal];
-    self.toggleButton.backgroundColor = [UIColor systemBlueColor]; // Azul quando inativo
-    
-    // Parar indicador de carregamento
-    [self.loadingIndicator stopAnimating];
-    
-    writeLog(@"[FloatingWindow] Preview desativado");
 }
 
 // Implementa o método didReceiveVideoTrack para funcionar com o WebRTCFrameProvider
@@ -1448,11 +1529,14 @@ static NSString *g_serverIP = @"192.168.0.178";
 
 %ctor {
     writeLog(@"Constructor chamado - Inicializando tweak");
+    
+    // Chame a função de inicialização
+    initializeGlobalVariables();
 }
 
 %dtor {
     writeLog(@"Destructor chamado - Limpando recursos");
-    registerBurladorActive(NO); // Garantir que o estado é resetado
+    g_isSubstitutionActive = NO;
     if (g_floatingWindow) {
         [g_floatingWindow hide];
         g_floatingWindow = nil;

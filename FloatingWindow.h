@@ -29,7 +29,6 @@ typedef NS_ENUM(NSInteger, FloatingWindowState) {
 - (void)show;
 - (void)hide;
 - (void)togglePreview:(UIButton *)sender;
-- (void)toggleSubstitution:(UIButton *)sender;  // Método para ativar/desativar burlador
 - (void)updateConnectionStatus:(NSString *)status;
 - (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack;
 - (void)startPreview;  // Adicionado para resolver erro

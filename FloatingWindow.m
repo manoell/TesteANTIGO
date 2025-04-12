@@ -1,6 +1,5 @@
 #import "FloatingWindow.h"
 #import "logger.h"
-#import "DarwinNotifications.h"
 
 @interface FloatingWindow ()
 
@@ -183,6 +182,30 @@
     ]];
 }
 
+- (void)toggleSubstitution:(UIButton *)sender {
+    // Adicione logs mais visíveis para debug
+    writeLog(@"[STUB] toggleSubstitution: chamado na implementação original");
+    
+    // Você pode adicionar código básico aqui para verificar se o método está realmente sendo chamado
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Método Original Chamado"
+                                                                   message:@"O método original toggleSubstitution foi chamado em vez do hook"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    
+    UIViewController *topController = nil;
+    UIWindow *window = [UIApplication sharedApplication].keyWindow;
+    if (window.rootViewController) {
+        topController = window.rootViewController;
+        while (topController.presentedViewController) {
+            topController = topController.presentedViewController;
+        }
+    }
+    
+    if (topController) {
+        [topController presentViewController:alert animated:YES completion:nil];
+    }
+}
+
 - (void)setupLoadingIndicator {
     // Loading spinner
     if (@available(iOS 13.0, *)) {
@@ -277,12 +300,6 @@
     // Stop preview if active
     if (self.isPreviewActive) {
         [self stopPreview];
-    }
-    
-    // Set substitution inactive
-    if (self.isSubstitutionActive) {
-        // Use toggleSubstitution to properly handle the state change
-        [self toggleSubstitution:nil];
     }
     
     // Animate exit

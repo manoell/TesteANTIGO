@@ -1,5 +1,6 @@
 #import "WebRTCManager.h"
 #import "logger.h"
+#import "DarwinNotifications.h"
 
 @interface WebRTCManager () <RTCPeerConnectionDelegate, NSURLSessionWebSocketDelegate>
 @property (nonatomic, assign, readwrite) WebRTCManagerState state;
@@ -275,6 +276,10 @@
 - (void)setSubstitutionActive:(BOOL)active {
     if (_isSubstitutionActive != active) {
         _isSubstitutionActive = active;
+        
+        // Adicionar esta linha para registrar o estado via Darwin
+        registerBurladorActive(active);
+        
         writeLog(@"[WebRTCManager] Substituição de câmera %@", active ? @"ativada" : @"desativada");
     }
 }
@@ -884,6 +889,18 @@
 
 // Implementação aprimorada para capturar e converter frames do WebRTC
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
+    static int callCount = 0;
+    if (++callCount % 100 == 0) {
+        writeLog(@"[WebRTCManager] getCurrentFrame chamado (#%d) de %@",
+                 callCount,
+                 [NSThread isMainThread] ? @"thread principal" : @"thread secundária");
+        
+        // Verificar estado
+        writeLog(@"[WebRTCManager] Estado: substitution=%d, videoTrack=%@, isReceiving=%d",
+                 self.isSubstitutionActive ? 1 : 0,
+                 self.videoTrack ? @"OK" : @"NULL",
+                 self.isReceivingFrames ? 1 : 0);
+    }
     // PRIMEIRO VERIFICA: A substituição deve estar ativa para retornar frames
     if (!self.isSubstitutionActive) {
         // Se não estiver ativa a substituição, retorna o buffer original (se houver)

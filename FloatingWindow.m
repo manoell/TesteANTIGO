@@ -1,3 +1,4 @@
+#import "DarwinNotifications.h"
 #import "FloatingWindow.h"
 #import "WebRTCManager.h"
 #import "logger.h"
@@ -58,7 +59,7 @@
         // Frame for expanded state (almost full screen with margins)
         CGFloat margin = 20.0;
         CGFloat expandedWidth = screenBounds.size.width - (2 * margin);
-        CGFloat expandedHeight = expandedWidth * 9 / 16 + 60; // Seu valor atual
+        CGFloat expandedHeight = expandedWidth * 9 / 16 + 80; // Seu valor atual
         CGFloat xPosition = margin;
         CGFloat yPosition = (screenBounds.size.height - expandedHeight) / 2; // Centralizar verticalmente
         self.expandedFrame = CGRectMake(
@@ -163,8 +164,8 @@
     [self.toggleButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     self.toggleButton.backgroundColor = [UIColor systemBlueColor];
     self.toggleButton.layer.cornerRadius = 10;
-    self.toggleButton.enabled = NO; // Inicialmente desabilitado
-    self.toggleButton.alpha = 0.5;  // Visual de desabilitado
+    self.toggleButton.enabled = NO;
+    self.toggleButton.alpha = 1.0;
     [self.toggleButton addTarget:self action:@selector(togglePreview:) forControlEvents:UIControlEventTouchUpInside];
     [buttonContainer addSubview:self.toggleButton];
     
@@ -362,6 +363,14 @@
             return;
         }
         [self startPreview];
+        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames");
+        CMSampleBufferRef testBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
+        if (testBuffer) {
+            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso");
+            CFRelease(testBuffer);
+        } else {
+            writeLog(@"[FloatingWindow] Falha ao obter frame de teste");
+        }
     }
 }
 
@@ -415,7 +424,7 @@
             [self stopPreview];
         }
         self.toggleButton.enabled = NO;
-        self.toggleButton.alpha = 0.5;
+        self.toggleButton.alpha = 1.0;
         
         writeLog(@"[FloatingWindow] Burlador desativado");
         

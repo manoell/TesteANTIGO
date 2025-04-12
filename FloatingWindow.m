@@ -183,27 +183,37 @@
 }
 
 - (void)toggleSubstitution:(UIButton *)sender {
-    // Adicione logs mais visíveis para debug
-    writeLog(@"[STUB] toggleSubstitution: chamado na implementação original");
+    writeLog(@"[FloatingWindow] Toggle solicitado pelo usuário");
+    [[BurladorManager sharedInstance] toggleState];
     
-    // Você pode adicionar código básico aqui para verificar se o método está realmente sendo chamado
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Método Original Chamado"
-                                                                   message:@"O método original toggleSubstitution foi chamado em vez do hook"
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    // Atualizar UI com base no novo estado
+    [self updateUIForBurladorState:[BurladorManager sharedInstance].isActive];
+}
+
+- (void)updateUIForBurladorState:(BOOL)isActive {
+    // Atualizar UI
+    self.isSubstitutionActive = isActive;
     
-    UIViewController *topController = nil;
-    UIWindow *window = [UIApplication sharedApplication].keyWindow;
-    if (window.rootViewController) {
-        topController = window.rootViewController;
-        while (topController.presentedViewController) {
-            topController = topController.presentedViewController;
+    if (isActive) {
+        [self.substitutionButton setTitle:@"Desativar Burlador" forState:UIControlStateNormal];
+        self.substitutionButton.backgroundColor = [UIColor redColor];
+        
+        // Habilitar botão de preview
+        self.toggleButton.enabled = YES;
+        self.toggleButton.alpha = 1.0;
+    } else {
+        [self.substitutionButton setTitle:@"Ativar Burlador" forState:UIControlStateNormal];
+        self.substitutionButton.backgroundColor = [UIColor systemBlueColor];
+        
+        // Desabilitar botão de preview e parar preview se estiver ativo
+        if (self.isPreviewActive) {
+            [self stopPreview];
         }
+        self.toggleButton.enabled = NO;
+        self.toggleButton.alpha = 0.5;
     }
     
-    if (topController) {
-        [topController presentViewController:alert animated:YES completion:nil];
-    }
+    [self updateMinimizedIconWithState];
 }
 
 - (void)setupLoadingIndicator {

@@ -1,5 +1,6 @@
 #import "FloatingWindow.h"
 #import "logger.h"
+#import "BurladorManager.h"
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
@@ -37,7 +38,6 @@ static AVCaptureVideoOrientation g_photoOrientation = AVCaptureVideoOrientationP
 static AVCaptureVideoOrientation g_lastOrientation = AVCaptureVideoOrientationPortrait;
 static NSString *g_serverIP = @"192.168.0.178";
 static BOOL g_cameraRunning = NO;
-static BOOL g_isSubstitutionActive = NO;
 
 // Garantir que as variáveis globais estejam inicializadas corretamente
 static void initializeGlobalVariables() {
@@ -52,11 +52,11 @@ static void initializeGlobalVariables() {
         }
         
         // Verificar estado do burlador ao iniciar
-        BOOL burladorActive = g_isSubstitutionActive;
+        BOOL burladorActive = [BurladorManager sharedInstance].isActive;
         writeLog(@"Estado inicial do burlador: %@", burladorActive ? @"ATIVO" : @"INATIVO");
         
         // Resetar para garantir estado inicial consistente
-        g_isSubstitutionActive = NO;
+        [[BurladorManager sharedInstance] setState:NO];
     });
 }
 
@@ -90,7 +90,7 @@ static void initializeGlobalVariables() {
         _isSubstitutionActive = NO;
         _roomId = @"ios-camera";
         _hasJoinedRoom = NO;
-        _currentFrameBuffer = NULL;
+        _currentFrameBuffer = nil;
         _lastCapturedFrame = nil;
         _lastI420Buffer = nil;
         _lastCVPixelBuffer = nil;
@@ -603,9 +603,14 @@ static void initializeGlobalVariables() {
         _isSubstitutionActive = active;
         writeLog(@"[WebRTCFrameProvider] Substituição %@", active ? @"ativada" : @"desativada");
         
-        // Substituir a chamada de registerBurladorActive por uma atribuição direta à variável global
-        g_isSubstitutionActive = active;
-        writeLog(@"[Global] Estado do burlador alterado para: %@", active ? @"ATIVO" : @"INATIVO");
+        // Sincronizar com o BurladorManager
+        BOOL managerState = [BurladorManager sharedInstance].isActive;
+        if (managerState != active) {
+            [[BurladorManager sharedInstance] setState:active];
+        }
+        
+        writeLog(@"[Global] Estado do burlador alterado para: %@, valor global: %d",
+                active ? @"ATIVO" : @"INATIVO", (int)[BurladorManager sharedInstance].isActive);
         
         // Iniciar ou parar WebRTC conforme o estado
         if (active && !self.peerConnection) {
@@ -624,7 +629,7 @@ static void initializeGlobalVariables() {
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
     // Incrementar contador para controle de log
     _frameCounter++;
-    BOOL shouldLog = (_frameCounter % 100 == 0); // Aumentei a frequência de log para debug
+    BOOL shouldLog = (_frameCounter % 60 == 0); // Log a cada 60 frames (aproximadamente 1 segundo a 60 FPS)
     
     if (shouldLog) {
         writeLog(@"[WebRTCFrameProvider] getCurrentFrame (#%d) - %@",
@@ -633,6 +638,9 @@ static void initializeGlobalVariables() {
     
     // Verificação primária: substituição deve estar ativa
     if (!self.isSubstitutionActive) {
+        if (shouldLog) {
+            writeLog(@"[WebRTCFrameProvider] Substituição inativa, retornando buffer original");
+        }
         return originSampleBuffer;
     }
     
@@ -667,7 +675,7 @@ static void initializeGlobalVariables() {
         if (_lastCVPixelBuffer && _lastCVPixelBuffer.pixelBuffer) {
             CVPixelBufferRef pixelBuffer = _lastCVPixelBuffer.pixelBuffer;
             
-            // Debug info
+            // Log detalhado do pixelBuffer
             if (shouldLog) {
                 writeLog(@"[WebRTCFrameProvider] Usando CVPixelBuffer direto: %dx%d, formato %d",
                         (int)CVPixelBufferGetWidth(pixelBuffer),
@@ -734,11 +742,12 @@ static void initializeGlobalVariables() {
                 (int)_lastCapturedFrame.width, (int)_lastCapturedFrame.height);
     }
     
-    // Se tudo falhar, retornar o buffer original
+    // Se tudo falhar, criar um padrão de teste para depuração
     if (shouldLog) {
-        writeLog(@"[WebRTCFrameProvider] Retornando buffer original");
+        writeLog(@"[WebRTCFrameProvider] Criando padrão de teste como último recurso");
     }
-    return originSampleBuffer;
+    
+    return [self createTestPatternBuffer:640 height:480 format:targetFormat];
 }
 
 - (CVPixelBufferRef)convertPixelBuffer:(CVPixelBufferRef)sourceBuffer toFormat:(OSType)targetFormat {
@@ -766,7 +775,34 @@ static void initializeGlobalVariables() {
     }
     
     // Implementar conversão com base nos formatos de origem e destino
-    // (Podemos expandir isto para mais formatos conforme necessário)
+    CVPixelBufferLockBaseAddress(sourceBuffer, kCVPixelBufferLock_ReadOnly);
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    
+    // BGRA -> BGRA (cópia direta)
+    if (CVPixelBufferGetPixelFormatType(sourceBuffer) == kCVPixelFormatType_32BGRA &&
+        targetFormat == kCVPixelFormatType_32BGRA) {
+        
+        uint8_t *srcData = (uint8_t *)CVPixelBufferGetBaseAddress(sourceBuffer);
+        uint8_t *dstData = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t srcBytesPerRow = CVPixelBufferGetBytesPerRow(sourceBuffer);
+        size_t dstBytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        
+        // Copiar linha por linha
+        for (size_t y = 0; y < height; y++) {
+            memcpy(dstData + y * dstBytesPerRow, srcData + y * srcBytesPerRow, width * 4);
+        }
+    }
+    // Adicionar mais conversões conforme necessário
+    else {
+        // Falha, formato não suportado
+        CVPixelBufferUnlockBaseAddress(sourceBuffer, kCVPixelBufferLock_ReadOnly);
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
+    }
+    
+    CVPixelBufferUnlockBaseAddress(sourceBuffer, kCVPixelBufferLock_ReadOnly);
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
     
     return pixelBuffer;
 }
@@ -935,6 +971,122 @@ static void initializeGlobalVariables() {
     
     if (status != noErr) {
         writeLog(@"[WebRTCFrameProvider] Falha ao criar sample buffer: %d", (int)status);
+        return NULL;
+    }
+    
+    return sampleBuffer;
+}
+
+- (CMSampleBufferRef)createTestPatternBuffer:(size_t)width height:(size_t)height format:(OSType)pixelFormat {
+    // Criar pixel buffer
+    CVPixelBufferRef pixelBuffer = NULL;
+    NSDictionary *pixelAttributes = @{
+        (NSString*)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat),
+        (NSString*)kCVPixelBufferCGBitmapContextCompatibilityKey: @(YES),
+        (NSString*)kCVPixelBufferCGImageCompatibilityKey: @(YES),
+    };
+    
+    CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault,
+                                        width,
+                                        height,
+                                        pixelFormat,
+                                        (__bridge CFDictionaryRef)pixelAttributes,
+                                        &pixelBuffer);
+    
+    if (status != kCVReturnSuccess) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar pixel buffer de teste: %d", status);
+        return NULL;
+    }
+    
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+    
+    // Gerar padrão colorido
+    if (pixelFormat == kCVPixelFormatType_32BGRA) {
+        uint8_t *baseAddress = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        size_t bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        
+        // Padrão colorido dinâmico
+        static uint8_t offset = 0;
+        offset = (offset + 1) % 255;
+        
+        for (size_t y = 0; y < height; y++) {
+            for (size_t x = 0; x < width; x++) {
+                size_t pixelIndex = y * bytesPerRow + x * 4;
+                baseAddress[pixelIndex + 0] = ((x + offset) % 255);        // B
+                baseAddress[pixelIndex + 1] = ((y + offset) % 255);        // G
+                baseAddress[pixelIndex + 2] = ((x + y + offset) % 255);    // R
+                baseAddress[pixelIndex + 3] = 255;                         // A
+            }
+        }
+    }
+    else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
+         pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
+    
+        uint8_t *yPlanePtr = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
+        uint8_t *uvPlanePtr = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
+        
+        size_t yBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
+        size_t uvBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
+        
+        static uint8_t offset = 0;
+        offset = (offset + 1) % 255;
+        
+        // Preencher plano Y com um gradiente
+        for (size_t y = 0; y < height; y++) {
+            for (size_t x = 0; x < width; x++) {
+                yPlanePtr[y * yBytesPerRow + x] = ((x + y + offset) % 255);
+            }
+        }
+        
+        // Preencher plano UV com valores neutros (cinza)
+        for (size_t y = 0; y < height / 2; y++) {
+            for (size_t x = 0; x < width / 2; x++) {
+                uvPlanePtr[y * uvBytesPerRow + x * 2] = 128;     // U
+                uvPlanePtr[y * uvBytesPerRow + x * 2 + 1] = 128; // V
+            }
+        }
+    }
+    
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+    
+    // Criar descrição de formato
+    CMVideoFormatDescriptionRef videoInfo = NULL;
+    OSStatus formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        &videoInfo);
+    
+    if (formatStatus != noErr) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar descrição de formato para teste: %d", (int)formatStatus);
+        CVPixelBufferRelease(pixelBuffer);
+        return NULL;
+    }
+    
+    // Criar timing info
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, 30),
+        .presentationTimeStamp = CMTimeMake((int64_t)(CACurrentMediaTime() * 1000), 1000),
+        .decodeTimeStamp = kCMTimeInvalid
+    };
+    
+    // Criar sample buffer
+    CMSampleBufferRef sampleBuffer = NULL;
+    OSStatus sampleStatus = CMSampleBufferCreateForImageBuffer(
+        kCFAllocatorDefault,
+        pixelBuffer,
+        YES,
+        NULL,
+        NULL,
+        videoInfo,
+        &timing,
+        &sampleBuffer);
+    
+    // Liberar recursos
+    CFRelease(videoInfo);
+    CVPixelBufferRelease(pixelBuffer);
+    
+    if (sampleStatus != noErr) {
+        writeLog(@"[WebRTCFrameProvider] Falha ao criar sample buffer de teste: %d", (int)sampleStatus);
         return NULL;
     }
     
@@ -1121,14 +1273,21 @@ static void initializeGlobalVariables() {
     if (![[self sublayers] containsObject:g_previewLayer]) {
         writeLog(@"Configurando camadas de preview");
         g_previewLayer = [[AVSampleBufferDisplayLayer alloc] init];
+        g_previewLayer.videoGravity = AVLayerVideoGravityResizeAspect;
 
         // Máscara preta para cobrir a visualização original
         g_maskLayer = [CALayer new];
         g_maskLayer.backgroundColor = [UIColor blackColor].CGColor;
         g_maskLayer.opacity = 0.0; // Inicia invisível
         
-        [self insertSublayer:g_maskLayer above:layer];
-        [self insertSublayer:g_previewLayer above:g_maskLayer];
+        // Usando insertSublayer:atIndex: em vez de insertSublayer:above:
+        [self insertSublayer:g_maskLayer atIndex:[[self sublayers] count]];
+        [self insertSublayer:g_previewLayer atIndex:[[self sublayers] count]];
+        
+        // Definindo zPosition para garantir a ordem correta
+        g_maskLayer.zPosition = 1000;
+        g_previewLayer.zPosition = 1001;
+        
         g_previewLayer.opacity = 0.0; // Inicia invisível
 
         // Inicializa tamanho das camadas na thread principal
@@ -1136,15 +1295,40 @@ static void initializeGlobalVariables() {
             g_previewLayer.frame = self.bounds;
             g_maskLayer.frame = self.bounds;
             writeLog(@"Tamanho das camadas inicializado: %@", NSStringFromCGRect(self.bounds));
+            
+            // Verificar estado atual - se já estiver ativo, garantir visibilidade
+            if (g_isSubstitutionActive) {
+                g_maskLayer.opacity = 1.0;
+                g_previewLayer.opacity = 1.0;
+                writeLog(@"Camadas inicializadas visíveis devido ao estado ativo");
+            }
         });
+    } else {
+        // Se já existe, verifica se está na ordem correta
+        NSArray *sublayers = [self sublayers];
+        NSUInteger maskIndex = [sublayers indexOfObject:g_maskLayer];
+        NSUInteger previewIndex = [sublayers indexOfObject:g_previewLayer];
+        
+        // Se a ordem estiver errada, reordene
+        if (maskIndex != NSNotFound && previewIndex != NSNotFound) {
+            if (maskIndex >= previewIndex) {
+                [g_maskLayer removeFromSuperlayer];
+                [g_previewLayer removeFromSuperlayer];
+                
+                [self insertSublayer:g_maskLayer atIndex:[[self sublayers] count]];
+                [self insertSublayer:g_previewLayer atIndex:[[self sublayers] count]];
+                
+                writeLog(@"Camadas reordenadas para garantir sobreposição correta");
+            }
+        }
     }
 }
 
 // Método adicionado para atualização contínua do preview
 %new
 -(void)step:(CADisplayLink *)sender{
-    // Usar a variável global em vez da função isBurladorActive
-    BOOL isSubstitutionActive = g_isSubstitutionActive;
+    // Ler diretamente a variável global
+    BOOL isSubstitutionActive = [BurladorManager sharedInstance].isActive;
     
     // Cache de verificação para evitar sobrecarga
     static NSTimeInterval lastLogTime = 0;
@@ -1160,52 +1344,50 @@ static void initializeGlobalVariables() {
                 g_maskLayer ? @"OK" : @"NULL",
                 g_previewLayer ? @"OK" : @"NULL",
                 frameCounter,
-                g_isSubstitutionActive);
+                (int)g_isSubstitutionActive);
         lastLogTime = currentTime;
     }
     
-    // Controla a visibilidade das camadas baseado no estado do burlador
-    if (!isSubstitutionActive) {
-        // Esconder camadas imediatamente se burlador está desativado
-        if (g_maskLayer != nil && g_maskLayer.opacity > 0.0) {
-            g_maskLayer.opacity = 0.0;
-            writeLog(@"[step] Ocultando camada de máscara");
-        }
-        if (g_previewLayer != nil && g_previewLayer.opacity > 0.0) {
-            g_previewLayer.opacity = 0.0;
-            writeLog(@"[step] Ocultando camada de preview");
+    // PRIMEIRO: Verificar se as camadas existem
+    if (!g_maskLayer || !g_previewLayer) {
+        if (shouldLog) {
+            writeLog(@"[step] Camadas não inicializadas, não é possível continuar");
         }
         return;
     }
     
-    // Se chegou aqui, o burlador está ativo
-    
-    // Mostrar camadas para substituição
-    if (g_maskLayer != nil) {
+    // SEGUNDO: Atualizar visibilidade com base no estado
+    if (isSubstitutionActive) {
+        // Forçar visibilidade imediata quando burlador estiver ativo
         if (g_maskLayer.opacity < 1.0) {
             g_maskLayer.opacity = 1.0;
-            writeLog(@"[step] Camada preta agora visível");
+            writeLog(@"[step] FORÇANDO camada preta visível (opacity: %f)", g_maskLayer.opacity);
         }
-    }
-    
-    if (g_previewLayer != nil) {
-        // Atualiza o tamanho da camada de preview se necessário
+        
+        if (g_previewLayer.opacity < 1.0) {
+            g_previewLayer.opacity = 1.0;
+            writeLog(@"[step] FORÇANDO camada preview visível (opacity: %f)", g_previewLayer.opacity);
+        }
+        
+        // Garantir que as camadas estejam no tamanho correto
         if (!CGRectEqualToRect(g_previewLayer.frame, self.bounds)) {
             g_previewLayer.frame = self.bounds;
             g_maskLayer.frame = self.bounds;
             writeLog(@"[step] Tamanho das camadas atualizado: %@", NSStringFromCGRect(self.bounds));
         }
         
-        // Configura o comportamento de escala do vídeo para corresponder ao layer original
+        // Configurar gravidade do vídeo para corresponder ao layer original
         [g_previewLayer setVideoGravity:[self videoGravity]];
         
-        // Mostra a camada imediatamente
-        if (g_previewLayer.opacity < 1.0) {
-            g_previewLayer.opacity = 1.0;
-            writeLog(@"[step] Camada preview agora visível");
+        // Verificar ordem z-index para garantir visibilidade
+        if (g_maskLayer.zPosition < 1000) {
+            g_maskLayer.zPosition = 1000;
+        }
+        if (g_previewLayer.zPosition < 1001) {
+            g_previewLayer.zPosition = 1001;
         }
         
-        // Aplica rotação apenas se a orientação mudou, como no original
+        // Aplica rotação apenas se a orientação mudou
         if (g_photoOrientation != g_lastOrientation) {
             g_lastOrientation = g_photoOrientation;
             
@@ -1275,8 +1457,22 @@ static void initializeGlobalVariables() {
         } else if (shouldLog) {
             writeLog(@"[step] g_previewLayer não está pronto para mais dados");
         }
-    } else if (shouldLog) {
-        writeLog(@"[step] g_previewLayer é NULL, não é possível exibir frames");
+    } else {
+        // Se burlador está inativo, esconder camadas gradualmente
+        if (g_maskLayer.opacity > 0.0) {
+            // Ocultar imediatamente para evitar problemas
+            g_maskLayer.opacity = 0.0;
+            if (shouldLog) {
+                writeLog(@"[step] Ocultando camada de máscara");
+            }
+        }
+        if (g_previewLayer.opacity > 0.0) {
+            // Ocultar imediatamente para evitar problemas
+            g_previewLayer.opacity = 0.0;
+            if (shouldLog) {
+                writeLog(@"[step] Ocultando camada de preview");
+            }
+        }
     }
 }
 %end
@@ -1303,8 +1499,7 @@ static void initializeGlobalVariables() {
 - (void)setSampleBufferDelegate:(id<AVCaptureVideoDataOutputSampleBufferDelegate>)sampleBufferDelegate queue:(dispatch_queue_t)sampleBufferCallbackQueue{
     writeLog(@"AVCaptureVideoDataOutput::setSampleBufferDelegate - Delegate: %@, Queue: %@", sampleBufferDelegate, sampleBufferCallbackQueue);
     
-    // MODIFICAÇÃO: Em vez de retornar cedo se o delegate for nulo,
-    // vamos ainda assim executar o método original para manter o comportamento padrão
+    // Se o delegate ou queue for nulo, repassar para o método original
     if (sampleBufferDelegate == nil || sampleBufferCallbackQueue == nil) {
         writeLog(@"Delegate ou queue nulos, chamando método original");
         %orig;
@@ -1336,25 +1531,24 @@ static void initializeGlobalVariables() {
             MSHookMessageEx(
                 [sampleBufferDelegate class], @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
                 imp_implementationWithBlock(^(id self, AVCaptureOutput *output, CMSampleBufferRef sampleBuffer, AVCaptureConnection *connection){
-                    // Verificação CRUCIAL: Obter o status do burlador via Darwin Notifications
-                    BOOL isSubstitutionActive = g_isSubstitutionActive;
+                    // Verificação CRUCIAL: Obter o status do burlador diretamente da variável global
+                    BOOL isSubstitutionActive = [BurladorManager sharedInstance].isActive;
                     
                     // Atualiza orientação para uso no step:
                     g_photoOrientation = [connection videoOrientation];
                     
-                    // Log ocasional
+                    // Log ocasional para acompanhamento
                     static int callCount = 0;
-                    if (++callCount % 300 == 0) {
+                    if (++callCount % 100 == 0) {
                         writeLog(@"[captureOutput] Frame #%d, substituição: %@, orientação: %d",
-                                callCount,
-                                isSubstitutionActive ? @"ATIVA" : @"INATIVA",(int)g_photoOrientation);
+                               callCount,
+                               isSubstitutionActive ? @"ATIVA" : @"INATIVA", (int)g_photoOrientation);
                     }
                     
                     // Verificar se temos WebRTCFrameProvider e se burlador está ativo
                     if (isSubstitutionActive && g_frameProvider) {
-                        // Adicionar log para debug
-                        if (callCount % 300 == 0) {
-                            writeLog(@"[captureOutput] Tentando obter frame do WebRTCFrameProvider");
+                        if (shouldLog) {
+                            writeLog(@"[captureOutput] Tentando substituir frame com WebRTCFrameProvider");
                         }
                         
                         // Obtém um frame do WebRTC para substituir o buffer
@@ -1365,44 +1559,38 @@ static void initializeGlobalVariables() {
                             [g_previewLayer flush];
                             [g_previewLayer enqueueSampleBuffer:newBuffer];
                             
-                            // Log detalhado a cada 300 frames
-                            if (callCount % 300 == 0) {
-                                writeLog(@"[captureOutput] Preview atualizado com frame");
-                            }
-                        } else if (callCount % 300 == 0) {
-                            writeLog(@"[captureOutput] Não foi possível atualizar preview - buffer: %@, layer: %@, ready: %d",
-                                    newBuffer ? @"OK" : @"NULL",
-                                    g_previewLayer ? @"OK" : @"NULL",
-                                    g_previewLayer ? g_previewLayer.readyForMoreMediaData : -1);
-                        }
-                        
-                        // Chama o método original com o buffer substituído
-                        CMSampleBufferRef bufferToUse = newBuffer != nil ? newBuffer : sampleBuffer;
-                        
-                        // Log detalhado a cada 300 frames
-                        if (callCount % 300 == 0) {
-                            // Analisar o buffer para debug
-                            if (newBuffer != nil) {
+                            if (shouldLog) {
+                                writeLog(@"[captureOutput] Adicionado frame WebRTC ao preview");
+                                
+                                // Verificar detalhes do buffer para debug
                                 CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(newBuffer);
                                 if (imageBuffer) {
                                     size_t width = CVPixelBufferGetWidth(imageBuffer);
                                     size_t height = CVPixelBufferGetHeight(imageBuffer);
                                     OSType format = CVPixelBufferGetPixelFormatType(imageBuffer);
-                                    writeLog(@"[captureOutput] Substituição de buffer: SIM (%zux%zu, formato: %d)",
-                                          width, height, (int)format);
-                                } else {
-                                    writeLog(@"[captureOutput] Substituição de buffer: SIM (sem ImageBuffer)");
+                                    writeLog(@"[captureOutput] Buffer WebRTC: %zux%zu, formato: %d",
+                                             width, height, (int)format);
                                 }
-                            } else {
-                                writeLog(@"[captureOutput] Substituição de buffer: NÃO (usando original)");
                             }
                         }
                         
-                        return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, bufferToUse, connection);
+                        // Se temos um buffer WebRTC válido, usá-lo em vez do buffer original
+                        if (newBuffer != nil) {
+                            if (shouldLog) {
+                                writeLog(@"[captureOutput] Usando buffer WebRTC para substituição");
+                            }
+                            return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                                                  output, newBuffer, connection);
+                        } else if (shouldLog) {
+                            writeLog(@"[captureOutput] Falha ao obter buffer WebRTC, usando buffer original");
+                        }
+                    } else if (shouldLog && isSubstitutionActive) {
+                        writeLog(@"[captureOutput] Substituição ativa mas g_frameProvider é NULL");
                     }
                     
-                    // Se não há substituição ativa, usa o buffer original
-                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:), output, sampleBuffer, connection);
+                    // Se não há substituição ativa ou falhou na obtenção do buffer, usar o buffer original
+                    return original_method(self, @selector(captureOutput:didOutputSampleBuffer:fromConnection:),
+                                          output, sampleBuffer, connection);
                 }), (IMP*)&original_method
             );
         } else {
@@ -1492,46 +1680,24 @@ static void initializeGlobalVariables() {
         writeLog(@"[Hook] ERRO CRÍTICO: g_frameProvider ainda é nil após tentativa de inicialização");
     }
 }
-
-// Substitui o método togglePreview para trabalhar com o WebRTCFrameProvider
-- (void)togglePreview:(UIButton *)sender {
-    if (self.isPreviewActive) {
-        [self stopPreview];
-    } else {
-        [self startPreview];
-    }
-}
-
-// Implementa o método didReceiveVideoTrack para funcionar com o WebRTCFrameProvider
-%new
-- (void)didReceiveVideoTrack:(RTCVideoTrack *)videoTrack {
-    writeLog(@"[FloatingWindow] Faixa de vídeo recebida");
-    
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Configurar o videoView se existir
-        if (self.videoView) {
-            // Adicionar o renderer para o videoView se existir
-            [videoTrack addRenderer:self.videoView];
-        }
-        
-        // Marcar que estamos recebendo frames
-        self.isReceivingFrames = YES;
-        
-        // Parar indicador de carregamento
-        [self.loadingIndicator stopAnimating];
-        
-        // Atualizar ícone minimizado
-        [self updateMinimizedIconWithState];
-    });
-}
-
 %end
 
 %ctor {
     writeLog(@"Constructor chamado - Inicializando tweak");
     
-    // Chame a função de inicialização
-    initializeGlobalVariables();
+    // Inicializar BurladorManager em vez de variáveis globais
+    [[BurladorManager sharedInstance] setState:NO]; // Começa desativado
+    
+    // Configurar callback para mudanças de estado
+    [BurladorManager sharedInstance].stateChangeCallback = ^(BOOL isActive) {
+        // Atualizar WebRTCFrameProvider quando o estado mudar
+        if (g_frameProvider) {
+            [g_frameProvider setSubstitutionActive:isActive];
+        }
+    };
+    
+    // Inicializar outros componentes
+    g_frameProvider = [WebRTCFrameProvider sharedInstance];
 }
 
 %dtor {

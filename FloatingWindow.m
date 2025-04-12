@@ -363,13 +363,13 @@
             return;
         }
         [self startPreview];
-        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames");
+        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames - togglePreview");
         CMSampleBufferRef testBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
         if (testBuffer) {
-            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso");
+            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso - togglePreview");
             CFRelease(testBuffer);
         } else {
-            writeLog(@"[FloatingWindow] Falha ao obter frame de teste");
+            writeLog(@"[FloatingWindow] Falha ao obter frame de teste - togglePreview");
         }
     }
 }
@@ -477,6 +477,14 @@
         // Se já estiver conectado, adicionar o videoTrack ao videoView
         [self.webRTCManager.videoTrack addRenderer:self.videoView];
         [self.loadingIndicator stopAnimating];
+        writeLog(@"[FloatingWindow] Modo de preview ativado, verificando frames - startPreview");
+        CMSampleBufferRef testBuffer = [self.webRTCManager getCurrentFrame:NULL forceReNew:YES];
+        if (testBuffer) {
+            writeLog(@"[FloatingWindow] Frame de teste obtido com sucesso - startPreview");
+            CFRelease(testBuffer);
+        } else {
+            writeLog(@"[FloatingWindow] Falha ao obter frame de teste - startPreview");
+        }
     } else if (self.webRTCManager.state != WebRTCManagerStateConnecting) {
         // Se não estiver conectado nem conectando, exibir uma mensagem
         writeLog(@"[FloatingWindow] WebRTC não está conectado para mostrar preview");

@@ -1,7 +1,7 @@
 /**
  * Servidor WebRTC Otimizado para Streaming de Alta Qualidade em Rede Local 5GHz
- * Especialmente projetado para redes locais de alta velocidade e baixa latência
- * Focado em stream para substituição de câmera iOS em tempo real
+ * Especializado para stream de substituição de câmera iOS em tempo real
+ * Otimizado para qualidade de vídeo e baixa latência
  */
 
 const express = require('express');
@@ -11,25 +11,33 @@ const cors = require('cors');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const cluster = require('cluster');
 
 // Configurações otimizadas para redes locais de alta velocidade
 const CONFIG = {
   PORT: process.env.PORT || 8080,
   MAX_BITRATE: 50000, // 50Mbps para WiFi 5GHz
+  MIN_BITRATE: 15000, // 15Mbps mínimo para manter qualidade
   H264_PROFILE: '640032', // High profile, Level 5.0 (4K suporte)
+  H264_PROFILE_ALTERNATIVE: '42e032', // Perfil alternativo para maior compatibilidade
   TARGET_RESOLUTION: '3840x2160', // 4K UHD
   TARGET_FRAMERATE: 60,
-  DEFAULT_ROOM: 'ios-camera',
+  KEY_FRAME_INTERVAL: 60, // Solicitar keyframe a cada 60 frames (1 segundo em 60fps)
   PING_INTERVAL: 5000, // 5 segundos para detectar desconexões rapidamente
   CLEANUP_INTERVAL: 10000, // 10 segundos para limpeza de salas
   LOG_LEVEL: 'verbose', // verbose, info, warning, error
   MAX_PAYLOAD_SIZE: 64 * 1024 * 1024, // 64MB para permitir SDP grandes e candidatos ICE
+  DEFAULT_ROOM: 'ios-camera',
+  CONNECTION_TIMEOUT: 30000, // 30 segundos para timeout de conexão
+  ENABLE_CLUSTERING: process.env.NODE_ENV === 'production', // Habilitar modo cluster em produção
+  MAX_ROOMS: 100, // Limite de salas para prevenir DoS
+  MAX_CLIENTS_PER_ROOM: 10, // Limite de clientes por sala
 };
 
 // Configurar app Express
 const app = express();
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // Limite para payloads JSON
 app.use(express.static(path.join(__dirname)));
 
 // Criar servidor HTTP e WebSocket
@@ -37,12 +45,16 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ 
   server,
   maxPayload: CONFIG.MAX_PAYLOAD_SIZE,
-  perMessageDeflate: false // Desativar compressão para reduzir latência
+  perMessageDeflate: false, // Desativar compressão para reduzir latência
+  clientTracking: true, // Rastrear clientes
+  backlog: 1024, // Aumentar backlog para muitas conexões simultâneas
 });
 
 // Armazenar conexões e dados das salas
 const rooms = new Map();
 const clients = new Map();
+const rateLimit = new Map(); // Para controle de rate limit
+let serverStartTime = Date.now();
 
 /**
  * Sistema de logging melhorado com níveis e timestamps
@@ -58,21 +70,46 @@ class Logger {
     this.level = this.levels[level] || this.levels.info;
     this.logFile = 'webrtc-server.log';
     
-    // Limpar log antigo no início
-    if (process.env.NODE_ENV !== 'production') {
-      fs.writeFileSync(this.logFile, '', 'utf8');
+    // Criar ou truncar log no início
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        fs.writeFileSync(this.logFile, `[${new Date().toISOString()}] WebRTC Server Started\n`, 'utf8');
+      } else {
+        // Em produção, apenas anexar mensagem de início
+        fs.appendFileSync(this.logFile, `\n[${new Date().toISOString()}] WebRTC Server Started\n`);
+        
+        // Limitar tamanho do arquivo de log em produção (2MB)
+        fs.stat(this.logFile, (err, stats) => {
+          if (!err && stats.size > 2 * 1024 * 1024) {
+            // Fazer backup do log antigo
+            try {
+              fs.renameSync(this.logFile, `${this.logFile}.old`);
+              fs.writeFileSync(this.logFile, `[${new Date().toISOString()}] Log rotated\n`, 'utf8');
+            } catch (e) {
+              console.error('Error rotating log file:', e);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Error initializing log file:', e);
     }
   }
   
   _log(level, message) {
     if (this.levels[level] >= this.level) {
       const timestamp = new Date().toISOString();
-      const logMessage = `[${timestamp}][${level.toUpperCase()}] ${message}`;
+      const processId = cluster.isWorker ? `[Worker ${process.pid}]` : '[Master]';
+      const logMessage = `[${timestamp}]${processId}[${level.toUpperCase()}] ${message}`;
       
       console[level === 'warning' ? 'warn' : level](logMessage);
       
       // Registrar no arquivo também
-      fs.appendFileSync(this.logFile, logMessage + '\n');
+      try {
+        fs.appendFileSync(this.logFile, logMessage + '\n');
+      } catch (e) {
+        console.error('Error writing to log file:', e);
+      }
       
       return logMessage;
     }
@@ -96,12 +133,23 @@ class Room {
     this.offers = [];
     this.answers = [];
     this.iceCandidates = new Map(); // senderId -> [candidates]
+    this.hostCandidates = new Map(); // senderId -> [host candidates] (para reconexão rápida)
     this.created = new Date();
     this.lastActivity = new Date();
+    this.qualityMetrics = new Map(); // clientId -> metrics
     this.stats = {
       messagesExchanged: 0,
       peakClients: 0,
-      reconnections: 0
+      reconnections: 0,
+      bytesTransferred: 0,
+      errors: 0
+    };
+    this.videoQualityConfig = {
+      targetBitrate: CONFIG.MAX_BITRATE,
+      targetResolution: CONFIG.TARGET_RESOLUTION,
+      targetFramerate: CONFIG.TARGET_FRAMERATE,
+      keyFrameInterval: CONFIG.KEY_FRAME_INTERVAL,
+      preferredCodec: 'H264'
     };
   }
 
@@ -115,6 +163,11 @@ class Room {
       // Atualizar referência para o mesmo cliente
       this.clients.set(client.id, client);
       return this.clients.size;
+    }
+    
+    // Verificar limite de clientes por sala
+    if (this.clients.size >= CONFIG.MAX_CLIENTS_PER_ROOM) {
+      throw new Error(`Sala ${this.id} atingiu o limite máximo de ${CONFIG.MAX_CLIENTS_PER_ROOM} clientes`);
     }
     
     this.clients.set(client.id, client);
@@ -148,9 +201,12 @@ class Room {
         
       let sentCount = 0;
       this.clients.forEach((client, id) => {
-        if (id !== exceptClientId && client.readyState === WebSocket.OPEN) {
+        if (id !== exceptClientId && client && client.readyState === WebSocket.OPEN) {
           client.send(msgString);
           sentCount++;
+          
+          // Estimar bytes transferidos
+          this.stats.bytesTransferred += msgString.length;
         }
       });
       
@@ -161,6 +217,7 @@ class Room {
       
       return sentCount;
     } catch (error) {
+      this.stats.errors++;
       logger.error(`Erro no broadcast para sala ${this.id}: ${error.message}`);
       return 0;
     }
@@ -178,7 +235,8 @@ class Room {
       case 'offer':
         // Otimizar SDP para redes locais de alta velocidade e baixa latência
         if (message.sdp) {
-          message.sdp = enhanceSdpForHighQuality(message.sdp);
+          message.originalSdp = message.sdp; // Armazenar SDP original para diagnóstico
+          message.sdp = enhanceSdpForHighQuality(message.sdp, this.videoQualityConfig);
           logger.verbose(`SDP de oferta otimizado para alta qualidade na sala ${this.id}`);
         }
         
@@ -214,6 +272,21 @@ class Room {
           if (isHostCandidate) {
             // Candidatos host vão para o início da lista (maior prioridade)
             candidates.unshift(message);
+            
+            // Armazenar também na lista de candidatos host para reconexão rápida
+            if (!this.hostCandidates.has(message.senderId)) {
+              this.hostCandidates.set(message.senderId, []);
+            }
+            
+            const hostCandidatesList = this.hostCandidates.get(message.senderId);
+            if (!hostCandidatesList.some(c => c.candidate === message.candidate)) {
+              hostCandidatesList.push(message);
+              
+              // Manter apenas os 5 melhores candidatos host
+              if (hostCandidatesList.length > 5) {
+                hostCandidatesList.pop();
+              }
+            }
           } else {
             // Outros candidatos vão para o final
             candidates.push(message);
@@ -238,8 +311,85 @@ class Room {
         }
         break;
         
+      case 'quality-report':
+        // Armazenar métricas de qualidade
+        this.updateQualityMetrics(message.senderId, message.metrics);
+        break;
+        
       default:
         logger.verbose(`Mensagem de tipo ${type} não armazenada`);
+    }
+  }
+
+  updateQualityMetrics(clientId, metrics) {
+    if (!clientId || !metrics) return;
+    
+    this.qualityMetrics.set(clientId, {
+      timestamp: Date.now(),
+      metrics: metrics
+    });
+    
+    // Analisar métricas e ajustar configurações se necessário
+    this.analyzeQualityMetrics();
+  }
+  
+  analyzeQualityMetrics() {
+    if (!this.qualityMetrics || this.qualityMetrics.size === 0) return;
+    
+    // Calcular médias de FPS, bitrate, etc
+    let totalFps = 0;
+    let totalBitrate = 0;
+    let totalLatency = 0;
+    let count = 0;
+    
+    for (const [clientId, data] of this.qualityMetrics.entries()) {
+      if (!data || !data.metrics) continue;
+      
+      const {metrics} = data;
+      if (metrics.fps) totalFps += metrics.fps;
+      if (metrics.bitrate) totalBitrate += metrics.bitrate;
+      if (metrics.latency) totalLatency += metrics.latency;
+      count++;
+    }
+    
+    if (count === 0) return;
+    
+    const avgFps = totalFps / count;
+    const avgBitrate = totalBitrate / count;
+    const avgLatency = totalLatency / count;
+    
+    logger.info(`Métricas médias para sala ${this.id}: FPS=${avgFps.toFixed(1)}, Bitrate=${avgBitrate.toFixed(0)}kbps, Latência=${avgLatency.toFixed(0)}ms`);
+    
+    // Aplicar ajustes se necessário
+    let configChanged = false;
+    
+    // Se FPS muito baixo mas bitrate alto, reduzir bitrate temporariamente
+    if (avgFps < this.videoQualityConfig.targetFramerate * 0.7 && 
+        avgBitrate > CONFIG.MIN_BITRATE * 1.5) {
+      
+      const newBitrate = Math.max(avgBitrate * 0.8, CONFIG.MIN_BITRATE);
+      this.videoQualityConfig.targetBitrate = newBitrate;
+      configChanged = true;
+      
+      logger.info(`Reduzindo bitrate para ${newBitrate.toFixed(0)}kbps na sala ${this.id} devido ao baixo FPS`);
+    }
+    
+    // Se latência for alta, reduzir tamanho do buffer
+    if (avgLatency > 200 && this.videoQualityConfig.keyFrameInterval > 30) {
+      this.videoQualityConfig.keyFrameInterval = 30;
+      configChanged = true;
+      
+      logger.info(`Reduzindo intervalo de keyframes para 30 na sala ${this.id} devido à alta latência`);
+    }
+    
+    // Notificar clientes se houve mudança
+    if (configChanged) {
+      this.broadcast({
+        type: 'quality-adjustment',
+        config: this.videoQualityConfig,
+        reason: 'Otimização automática baseada em métricas',
+        timestamp: Date.now()
+      });
     }
   }
 
@@ -254,7 +404,11 @@ class Room {
       answers: this.answers.length,
       iceCandidatesCount: Array.from(this.iceCandidates.values())
         .reduce((sum, candidates) => sum + candidates.length, 0),
-      ...this.stats
+      hostCandidatesCount: Array.from(this.hostCandidates.values())
+        .reduce((sum, candidates) => sum + candidates.length, 0),
+      videoQualityConfig: this.videoQualityConfig,
+      ...this.stats,
+      uptime: Math.floor((Date.now() - this.created) / 1000)
     };
   }
 }
@@ -263,6 +417,24 @@ class Room {
  * Obter ou criar uma sala
  */
 function getOrCreateRoom(roomId) {
+  // Sanitizar roomId para evitar problemas
+  roomId = roomId.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 50);
+  
+  if (roomId.length === 0) {
+    roomId = CONFIG.DEFAULT_ROOM;
+  }
+  
+  // Verificar o limite de salas
+  if (!rooms.has(roomId) && rooms.size >= CONFIG.MAX_ROOMS) {
+    // Limpar salas inativas se próximo do limite
+    cleanupRooms(true);
+    
+    // Verificar novamente após limpeza
+    if (rooms.size >= CONFIG.MAX_ROOMS) {
+      throw new Error(`Limite de ${CONFIG.MAX_ROOMS} salas atingido. Tente novamente mais tarde.`);
+    }
+  }
+  
   if (!rooms.has(roomId)) {
     rooms.set(roomId, new Room(roomId));
     logger.info(`Nova sala criada: ${roomId}`);
@@ -272,47 +444,125 @@ function getOrCreateRoom(roomId) {
 
 /**
  * Limpar conexões fechadas e salas vazias
+ * @param {boolean} aggressive - Se true, remove salas mesmo com pouca atividade
  */
-function cleanupRooms() {
+function cleanupRooms(aggressive = false) {
   let removedClients = 0;
   let removedRooms = 0;
+  
+  // Timestamp atual para comparação
+  const now = Date.now();
   
   // Primeiro, limpar clientes que não estão mais conectados
   for (const [id, room] of rooms.entries()) {
     for (const [clientId, client] of room.clients.entries()) {
       if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
         room.removeClient(client);
+        clients.delete(clientId);
         removedClients++;
       }
     }
     
-    // Em seguida, remover salas vazias
-    if (room.isEmpty()) {
+    // Em seguida, remover salas vazias ou inativas
+    const lastActivityTime = room.lastActivity.getTime();
+    const inactiveTime = now - lastActivityTime;
+    
+    if (room.isEmpty() || (aggressive && inactiveTime > 3600000)) { // 1 hora sem atividade
       rooms.delete(id);
       removedRooms++;
+      logger.info(`Sala ${id} removida: ${room.isEmpty() ? 'vazia' : 'inativa por 1 hora'}`);
+    }
+  }
+  
+  // Limpar clientes sem sala
+  for (const [clientId, client] of clients.entries()) {
+    if (!client.roomId || !rooms.has(client.roomId)) {
+      clients.delete(clientId);
+      removedClients++;
+    }
+  }
+  
+  // Limpar rate limits antigos
+  for (const [ip, time] of rateLimit.entries()) {
+    if (now - time > 60000) { // 1 minuto
+      rateLimit.delete(ip);
     }
   }
   
   if (removedClients > 0 || removedRooms > 0) {
     logger.info(`Limpeza: removidos ${removedClients} clientes desconectados e ${removedRooms} salas vazias. Salas restantes: ${rooms.size}`);
   }
+  
+  return { removedClients, removedRooms };
 }
 
 // Configurar limpeza periódica
 setInterval(cleanupRooms, CONFIG.CLEANUP_INTERVAL);
 
 /**
+ * Verificar rate limit para IP
+ * @param {string} ip - Endereço IP do cliente
+ * @param {number} limit - Número máximo de requests em 1 minuto
+ * @returns {boolean} - true se dentro do limite, false se excedeu
+ */
+function checkRateLimit(ip, limit = 100) {
+  const now = Date.now();
+  
+  // Ignorar localhost e IPs de rede local para rate limit
+  if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return true;
+  }
+  
+  if (!rateLimit.has(ip)) {
+    rateLimit.set(ip, { count: 1, firstRequest: now });
+    return true;
+  }
+  
+  const data = rateLimit.get(ip);
+  
+  // Resetar contador após 1 minuto
+  if (now - data.firstRequest > 60000) {
+    rateLimit.set(ip, { count: 1, firstRequest: now });
+    return true;
+  }
+  
+  // Incrementar contador
+  data.count++;
+  rateLimit.set(ip, data);
+  
+  // Verificar limite
+  if (data.count > limit) {
+    logger.warning(`Rate limit excedido para IP ${ip}: ${data.count} requests em menos de 1 minuto`);
+    return false;
+  }
+  
+  return true;
+}
+
+/**
  * Otimizar SDP para máxima qualidade e baixa latência em redes locais
  * @param {string} sdp - Session Description Protocol string
+ * @param {object} qualityConfig - Configurações de qualidade
  * @return {string} - SDP otimizado
  */
-function enhanceSdpForHighQuality(sdp) {
+function enhanceSdpForHighQuality(sdp, qualityConfig = {}) {
   if (!sdp) return sdp;
+  
+  // Usar configurações fornecidas ou padrões
+  const config = {
+    maxBitrate: qualityConfig.targetBitrate || CONFIG.MAX_BITRATE,
+    targetResolution: qualityConfig.targetResolution || CONFIG.TARGET_RESOLUTION,
+    targetFramerate: qualityConfig.targetFramerate || CONFIG.TARGET_FRAMERATE,
+    keyFrameInterval: qualityConfig.keyFrameInterval || CONFIG.KEY_FRAME_INTERVAL,
+    h264Profile: CONFIG.H264_PROFILE,
+    preferH264: true
+  };
   
   const lines = sdp.split('\n');
   const newLines = [];
   let inVideoSection = false;
   let videoSectionModified = false;
+  let h264PayloadType = null;
   
   // Controlar tipos de payload para evitar duplicatas
   const seenPayloads = new Set();
@@ -332,12 +582,12 @@ function enhanceSdpForHighQuality(sdp) {
       }
     }
     
-    // Detectar seção de vídeo e reordenar codecs
+    // Detectar seção de vídeo
     if (line.startsWith('m=video')) {
       inVideoSection = true;
       
       // Reordenar codecs para priorizar H.264
-      if (line.includes('H264') || line.includes('VP8') || line.includes('VP9')) {
+      if (config.preferH264 && (line.includes('H264') || line.includes('VP8') || line.includes('VP9'))) {
         const parts = line.split(' ');
         if (parts.length > 3) {
           // Separar a linha em partes e payloads
@@ -362,6 +612,11 @@ function enhanceSdpForHighQuality(sdp) {
                 const payload = match[1];
                 const codec = match[2];
                 codecMap.set(payload, codec);
+                
+                // Armazenar o payload type de H.264 para uso posterior
+                if (codec === 'H264') {
+                  h264PayloadType = payload;
+                }
               }
             }
           }
@@ -390,8 +645,8 @@ function enhanceSdpForHighQuality(sdp) {
     // Para seção de vídeo, adicionar taxa de bits alta para 4K
     if (inVideoSection && line.startsWith('c=') && !videoSectionModified) {
       newLines.push(line);
-      newLines.push(`b=AS:${CONFIG.MAX_BITRATE}`); // Taxa de bits muito alta para rede local
-      newLines.push(`b=TIAS:${CONFIG.MAX_BITRATE * 1000}`); // Também especificar em kbps
+      newLines.push(`b=AS:${config.maxBitrate}`); // Taxa de bits alta para rede local
+      newLines.push(`b=TIAS:${config.maxBitrate * 1000}`); // Também especificar em kbps
       videoSectionModified = true;
       continue;
     }
@@ -399,7 +654,7 @@ function enhanceSdpForHighQuality(sdp) {
     // Modificar profile-level-id de H.264 para suportar 4K e alta taxa de bits
     if (inVideoSection && line.includes('profile-level-id') && line.includes('H264')) {
       // Substituir por perfil de alta qualidade
-      const modifiedLine = line.replace(/profile-level-id=[0-9a-fA-F]+/i, `profile-level-id=${CONFIG.H264_PROFILE}`);
+      const modifiedLine = line.replace(/profile-level-id=[0-9a-fA-F]+/i, `profile-level-id=${config.h264Profile}`);
       
       // Adicionar packetization-mode=1 se não existir
       if (!modifiedLine.includes('packetization-mode')) {
@@ -415,29 +670,23 @@ function enhanceSdpForHighQuality(sdp) {
       const payload = line.split(':')[1].split(' ')[0];
       
       // Verificar se este payload está relacionado a H.264
-      let isH264 = false;
-      for (let j = 0; j < lines.length; j++) {
-        if (lines[j].startsWith(`a=rtpmap:${payload} H264`)) {
-          isH264 = true;
-          break;
-        }
-      }
-      
-      if (isH264) {
+      if (payload === h264PayloadType || line.includes('profile-level-id')) {
         // Adicionar parâmetros para qualidade de vídeo H.264
         let updatedLine = line;
         
         if (!updatedLine.includes('profile-level-id')) {
-          updatedLine += `;profile-level-id=${CONFIG.H264_PROFILE}`;
+          updatedLine += `;profile-level-id=${config.h264Profile}`;
         } else {
-          updatedLine = updatedLine.replace(/profile-level-id=[0-9a-fA-F]+/i, `profile-level-id=${CONFIG.H264_PROFILE}`);
+          updatedLine = updatedLine.replace(/profile-level-id=[0-9a-fA-F]+/i, `profile-level-id=${config.h264Profile}`);
         }
         
         // Adicionar parâmetros adicionais para streaming de alta qualidade
         const h264Params = {
           'level-asymmetry-allowed': '1',
           'packetization-mode': '1',
-          'sprop-parameter-sets': '', // Deixar vazio para ser preenchido pelo navegador
+          'max-fr': config.targetFramerate.toString(),
+          'max-mbps': '489600', // Para suportar 4K
+          'max-fs': '35280'     // Para suportar 4K
         };
         
         // Adicionar parâmetros que ainda não existem na linha
@@ -453,30 +702,48 @@ function enhanceSdpForHighQuality(sdp) {
     }
     
     // Adicionar framerate mais alto se em seção de vídeo e não presente
-    if (inVideoSection && (line.startsWith('a=rtpmap:') || line.startsWith('a=rtcp-fb:'))) {
+    if (inVideoSection && line.startsWith('a=rtpmap:') && line.includes('H264')) {
       const hasFramerate = lines.some(l => l.startsWith('a=framerate:'));
       
-      if (!hasFramerate && i > 0 && lines[i-1].startsWith('a=rtpmap:') && lines[i-1].includes('H264')) {
-        // Adicionar framerate alto para H.264 após linha rtpmap
-        newLines.push(line);
-        newLines.push(`a=framerate:${CONFIG.TARGET_FRAMERATE}`);
+      newLines.push(line);
+      
+      if (!hasFramerate) {
+        // Adicionar framerate alto para H.264
+        newLines.push(`a=framerate:${config.targetFramerate}`);
+        
+        // Adicionar key-frame-interval se não existir em outro lugar
+        const payload = line.match(/^a=rtpmap:(\d+)/)[1];
+        let hasKeyFrameInterval = false;
+        
+        for (let j = 0; j < lines.length; j++) {
+          if (lines[j].includes('key-frame-interval') || 
+              lines[j].includes('keyint') || 
+              lines[j].includes('max-fr')) {
+            hasKeyFrameInterval = true;
+            break;
+          }
+        }
+        
+        if (!hasKeyFrameInterval) {
+          newLines.push(`a=fmtp:${payload} key-frame-interval=${config.keyFrameInterval}`);
+        }
+        
         continue;
       }
     }
     
     // Configurar x-google-* parâmetros para Chrome
-    if (inVideoSection && line.includes('x-google')) {
-      // Ajustar parâmetros específicos do Chrome para alta qualidade
+    if (inVideoSection) {
       if (line.includes('x-google-max-bitrate')) {
-        newLines.push(`a=x-google-max-bitrate:${CONFIG.MAX_BITRATE}`);
+        newLines.push(`a=x-google-max-bitrate:${config.maxBitrate}`);
         continue;
       }
       if (line.includes('x-google-min-bitrate')) {
-        newLines.push(`a=x-google-min-bitrate:${Math.floor(CONFIG.MAX_BITRATE * 0.5)}`);
+        newLines.push(`a=x-google-min-bitrate:${Math.floor(config.maxBitrate * 0.5)}`);
         continue;
       }
       if (line.includes('x-google-start-bitrate')) {
-        newLines.push(`a=x-google-start-bitrate:${Math.floor(CONFIG.MAX_BITRATE * 0.7)}`);
+        newLines.push(`a=x-google-start-bitrate:${Math.floor(config.maxBitrate * 0.7)}`);
         continue;
       }
     }
@@ -487,9 +754,9 @@ function enhanceSdpForHighQuality(sdp) {
   
   const result = newLines.join('\n');
   
-  // Registro para verificação
-  logger.verbose(`SDP original:\n${sdp}`);
-  logger.verbose(`SDP otimizado:\n${result}`);
+  // Registro para verificação em modo verbose
+  logger.verbose(`SDP original: ${sdp.length} bytes`);
+  logger.verbose(`SDP otimizado: ${result.length} bytes`);
   
   return result;
 }
@@ -540,10 +807,18 @@ function analyzeSdpQuality(sdp) {
 
 // Lidar com conexões WebSocket
 wss.on('connection', (ws, req) => {
+  // Verificar rate limit
+  const clientIP = req.socket.remoteAddress || '0.0.0.0';
+  if (!checkRateLimit(clientIP)) {
+    ws.close(1008, 'Rate limit exceeded');
+    return;
+  }
+
   // Atribuir um ID único a este cliente
-  const clientId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+  const clientId = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2)}`;
   ws.id = clientId;
   ws.isAlive = true;
+  ws.connectedAt = Date.now();
   clients.set(clientId, ws);
   
   // Verificar se a conexão é local
@@ -562,14 +837,34 @@ wss.on('connection', (ws, req) => {
     ws.isAlive = true;
   });
   
+  // Configurar timeout para conexões
+  const connectionTimeout = setTimeout(() => {
+    if (ws.readyState === WebSocket.OPEN && !ws.roomId) {
+      logger.warning(`Timeout de conexão para ${ws.id} - não entrou em nenhuma sala após ${CONFIG.CONNECTION_TIMEOUT/1000}s`);
+      ws.close(1000, 'Connection timeout - no room joined');
+    }
+  }, CONFIG.CONNECTION_TIMEOUT);
+  
   // Lidar com erros
   ws.on('error', (error) => {
     logger.error(`Erro WebSocket (${clientId}): ${error.message}`);
+    clearTimeout(connectionTimeout);
   });
   
   // Processar mensagens recebidas
   ws.on('message', (message) => {
     try {
+      // Limitar tamanho da mensagem para evitar problemas
+      if (message.length > CONFIG.MAX_PAYLOAD_SIZE) {
+        logger.warning(`Mensagem muito grande recebida de ${ws.id}: ${message.length} bytes`);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Mensagem muito grande',
+          timestamp: Date.now()
+        }));
+        return;
+      }
+      
       const data = JSON.parse(message);
       const msgType = data.type;
       const msgRoomId = data.roomId || CONFIG.DEFAULT_ROOM;
@@ -595,6 +890,8 @@ wss.on('connection', (ws, req) => {
       // Lidar com diferentes tipos de mensagem
       switch (msgType) {
         case 'join':
+          // Cancelar timeout de conexão quando o cliente entra em uma sala
+          clearTimeout(connectionTimeout);
           handleJoinMessage(ws, msgRoomId);
           break;
           
@@ -606,6 +903,14 @@ wss.on('connection', (ws, req) => {
           
         case 'bye':
           handleByeMessage(ws, msgRoomId);
+          break;
+          
+        case 'reconnect':
+          handleReconnectionMessage(ws, data, msgRoomId);
+          break;
+          
+        case 'quality-report':
+          handleQualityReport(ws, data, msgRoomId);
           break;
           
         default:
@@ -628,7 +933,8 @@ wss.on('connection', (ws, req) => {
   // Lidar com desconexão
   ws.on('close', () => {
     logger.info(`Cliente ${ws.id} desconectado`);
-    clients.delete(clientId);
+    clients.delete(ws.id);
+    clearTimeout(connectionTimeout);
     
     // Notificar sala sobre a partida se o cliente estava em uma sala
     if (ws.roomId && rooms.has(ws.roomId)) {
@@ -639,7 +945,7 @@ wss.on('connection', (ws, req) => {
         type: 'user-left',
         userId: ws.id,
         timestamp: Date.now()
-      });
+      }, ws.id);
       
       // Remover o cliente da sala
       room.removeClient(ws);
@@ -650,7 +956,7 @@ wss.on('connection', (ws, req) => {
   try {
     ws.send(JSON.stringify({
       type: 'server-info',
-      version: '2.0.0',
+      version: '2.1.0',
       maxBitrate: CONFIG.MAX_BITRATE,
       preferredCodecs: ['H264'],
       defaultRoom: CONFIG.DEFAULT_ROOM,
@@ -687,7 +993,7 @@ function handleJoinMessage(ws, roomId) {
       oldRoom.broadcast({
         type: 'user-left',
         userId: ws.id
-      });
+      }, ws.id);
       logger.verbose(`Cliente ${ws.id} saiu da sala ${ws.roomId} para entrar em ${roomId}`);
       delete ws.roomId;
     }
@@ -706,10 +1012,11 @@ function handleJoinMessage(ws, roomId) {
     // Enviar configurações otimizadas para o cliente
     ws.send(JSON.stringify({
       type: 'connection-config',
-      targetBitrate: CONFIG.MAX_BITRATE,
+      targetBitrate: room.videoQualityConfig.targetBitrate,
       preferH264: true,
-      targetResolution: CONFIG.TARGET_RESOLUTION,
-      targetFramerate: CONFIG.TARGET_FRAMERATE,
+      targetResolution: room.videoQualityConfig.targetResolution,
+      targetFramerate: room.videoQualityConfig.targetFramerate,
+      keyFrameInterval: room.videoQualityConfig.keyFrameInterval,
       timestamp: Date.now()
     }));
     
@@ -719,11 +1026,34 @@ function handleJoinMessage(ws, roomId) {
       ws.send(JSON.stringify(latestOffer));
     }
     
-    // Enviar candidatos ICE relevantes
+    // Enviar candidatos ICE relevantes - priorizar host candidates para conexão rápida
+    const hostCandidatesSent = new Set();
+    
+    // Primeiro enviar candidatos host (conexão local direta)
+    for (const [senderId, candidates] of room.hostCandidates.entries()) {
+      // Enviar apenas os 5 melhores candidatos host por cliente
+      for (let i = 0; i < Math.min(candidates.length, 5); i++) {
+        ws.send(JSON.stringify(candidates[i]));
+        hostCandidatesSent.add(`${senderId}-${candidates[i].candidate}`);
+      }
+    }
+    
+    // Depois enviar outros candidatos ICE (não duplicar os host já enviados)
     for (const [senderId, candidates] of room.iceCandidates.entries()) {
       // Enviar apenas os 10 primeiros candidatos por cliente para evitar sobrecarga
-      for (let i = 0; i < Math.min(candidates.length, 10); i++) {
-        ws.send(JSON.stringify(candidates[i]));
+      let count = 0;
+      for (let i = 0; i < candidates.length && count < 10; i++) {
+        const candidate = candidates[i];
+        
+        // Pular se já enviamos este candidato host
+        if (candidate.candidate && 
+            candidate.candidate.includes('typ host') && 
+            hostCandidatesSent.has(`${senderId}-${candidate.candidate}`)) {
+          continue;
+        }
+        
+        ws.send(JSON.stringify(candidate));
+        count++;
       }
     }
     
@@ -732,6 +1062,7 @@ function handleJoinMessage(ws, roomId) {
       type: 'room-info',
       clients: room.clients.size,
       room: roomId,
+      videoQualityConfig: room.videoQualityConfig,
       timestamp: Date.now()
     }));
   } catch (error) {
@@ -786,7 +1117,7 @@ function handleRtcMessage(ws, type, data, roomId) {
       
       // Aprimorar SDP para alta qualidade
       if (type === 'offer') {
-        data.sdp = enhanceSdpForHighQuality(data.sdp);
+        data.sdp = enhanceSdpForHighQuality(data.sdp, room.videoQualityConfig);
         const newQuality = analyzeSdpQuality(data.sdp);
         logger.info(`Qualidade ${type} otimizada: vídeo=${newQuality.hasVideo}, resolução=${newQuality.resolution}, fps=${newQuality.fps}, bitrate=${newQuality.bitrate}`);
       }
@@ -866,6 +1197,110 @@ function handleByeMessage(ws, roomId) {
   }
 }
 
+/**
+ * Lidar com solicitação de reconexão rápida
+ */
+function handleReconnectionMessage(ws, data, roomId) {
+  try {
+    const room = rooms.get(roomId);
+    if (!room) {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: `Sala ${roomId} não existe`,
+        timestamp: Date.now()
+      }));
+      return;
+    }
+    
+    // Verificar se o cliente já está na sala
+    if (!ws.roomId || ws.roomId !== roomId) {
+      // Adicionar cliente à sala primeiro
+      room.addClient(ws);
+      ws.roomId = roomId;
+    }
+    
+    logger.info(`Cliente ${ws.id} solicitando reconexão rápida para sala ${roomId}`);
+    room.stats.reconnections++;
+    
+    // Enviar imediatamente os melhores candidatos host
+    let hostCandidatesCount = 0;
+    if (room.hostCandidates.size > 0) {
+      for (const [senderId, candidates] of room.hostCandidates.entries()) {
+        // Enviar apenas os melhores candidatos host para reconexão rápida
+        for (let i = 0; i < Math.min(candidates.length, 5); i++) {
+          ws.send(JSON.stringify(candidates[i]));
+          hostCandidatesCount++;
+        }
+      }
+    }
+    
+    // Enviar a última oferta disponível
+    if (room.offers.length > 0) {
+      ws.send(JSON.stringify(room.offers[room.offers.length - 1]));
+    }
+    
+    // Notificar outros clientes
+    room.broadcast({
+      type: 'peer-reconnecting',
+      userId: ws.id,
+      timestamp: Date.now()
+    }, ws.id);
+    
+    // Enviar confirmação
+    ws.send(JSON.stringify({
+      type: 'reconnect-response',
+      success: true,
+      hostCandidates: hostCandidatesCount,
+      videoQualityConfig: room.videoQualityConfig,
+      timestamp: Date.now()
+    }));
+    
+    logger.info(`Enviados dados de reconexão rápida para ${ws.id}: ${hostCandidatesCount} candidatos host`);
+  } catch (error) {
+    logger.error(`Erro ao processar reconexão para ${ws.id}: ${error.message}`);
+    try {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: `Erro na reconexão rápida`,
+        details: error.message
+      }));
+    } catch (e) {
+      // Ignorar erros ao enviar mensagens de erro
+    }
+  }
+}
+
+/**
+ * Processar relatório de qualidade
+ */
+function handleQualityReport(ws, data, roomId) {
+  try {
+    if (!ws.roomId || ws.roomId !== roomId || !rooms.has(roomId)) {
+      return;
+    }
+    
+    const room = rooms.get(roomId);
+    
+    // Verificar se temos métricas válidas
+    if (!data.metrics) {
+      return;
+    }
+    
+    // Atualizar métricas de qualidade para este cliente
+    room.updateQualityMetrics(ws.id, data.metrics);
+    
+    // Enviar confirmação se solicitado
+    if (data.requireAck) {
+      ws.send(JSON.stringify({
+        type: 'quality-report-ack',
+        timestamp: Date.now()
+      }));
+    }
+  } catch (error) {
+    logger.error(`Erro ao processar relatório de qualidade de ${ws.id}: ${error.message}`);
+  }
+}
+
 // Configurar intervalo de ping para manter conexões ativas
 const pingInterval = setInterval(() => {
   wss.clients.forEach(ws => {
@@ -891,6 +1326,8 @@ wss.on('close', () => {
 });
 
 // Definir rotas
+
+// Página principal
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -904,16 +1341,29 @@ app.get('/info', (req, res) => {
   });
   
   res.json({
-    clients: wss.clients.size,
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    clients: clients.size,
     rooms: rooms.size,
     roomsInfo: roomsInfo,
-    uptime: process.uptime(),
     config: {
       maxBitrate: CONFIG.MAX_BITRATE,
+      minBitrate: CONFIG.MIN_BITRATE,
       targetResolution: CONFIG.TARGET_RESOLUTION,
-      targetFramerate: CONFIG.TARGET_FRAMERATE
+      targetFramerate: CONFIG.TARGET_FRAMERATE,
+      keyFrameInterval: CONFIG.KEY_FRAME_INTERVAL
     },
-    version: '2.0.0'
+    version: '2.1.0',
+    system: {
+      platform: process.platform,
+      arch: process.arch,
+      nodeVersion: process.version,
+      cpus: os.cpus().length,
+      memory: {
+        total: Math.round(os.totalmem() / (1024 * 1024)),
+        free: Math.round(os.freemem() / (1024 * 1024)),
+        usage: Math.round((1 - os.freemem() / os.totalmem()) * 100)
+      }
+    }
   });
 });
 
@@ -928,6 +1378,30 @@ app.get('/room/:roomId/info', (req, res) => {
   res.json(rooms.get(roomId).getStats());
 });
 
+// Endpoint para enviar relatório de qualidade
+app.post('/quality-report', (req, res) => {
+  try {
+    const {roomId, clientId, metrics} = req.body;
+    
+    if (!roomId || !metrics) {
+      return res.status(400).json({error: 'Dados inválidos'});
+    }
+    
+    if (!rooms.has(roomId)) {
+      return res.status(404).json({error: 'Sala não encontrada'});
+    }
+    
+    const room = rooms.get(roomId);
+    
+    // Armazenar métricas de qualidade
+    room.updateQualityMetrics(clientId || 'http-client', metrics);
+    
+    res.json({success: true});
+  } catch (error) {
+    res.status(500).json({error: error.message});
+  }
+});
+
 // Endpoint para forçar limpeza de salas (administração)
 app.post('/admin/cleanup', (req, res) => {
   const before = {
@@ -935,7 +1409,7 @@ app.post('/admin/cleanup', (req, res) => {
     clients: clients.size
   };
   
-  cleanupRooms();
+  const {removedClients, removedRooms} = cleanupRooms(true);
   
   const after = {
     rooms: rooms.size,
@@ -947,11 +1421,45 @@ app.post('/admin/cleanup', (req, res) => {
     before,
     after,
     cleaned: {
-      rooms: before.rooms - after.rooms,
-      clients: before.clients - after.clients
+      rooms: removedRooms,
+      clients: removedClients
     }
   });
 });
+
+// Endpoint de diagnóstico (somente em dev)
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/debug/rooms', (req, res) => {
+    const roomList = [];
+    
+    rooms.forEach((room, id) => {
+      const clientList = [];
+      room.clients.forEach((client, clientId) => {
+        clientList.push({
+          id: clientId,
+          readyState: client.readyState,
+          connectedAt: client.connectedAt
+        });
+      });
+      
+      roomList.push({
+        id,
+        clients: clientList,
+        offers: room.offers.length,
+        answers: room.answers.length,
+        iceCandidates: Array.from(room.iceCandidates.keys()).length,
+        hostCandidates: Array.from(room.hostCandidates.keys()).length,
+        created: room.created,
+        lastActivity: room.lastActivity
+      });
+    });
+    
+    res.json({
+      rooms: roomList,
+      totalClients: clients.size
+    });
+  });
+}
 
 // Obter endereços IP locais
 function getLocalIPs() {
@@ -973,19 +1481,51 @@ function getLocalIPs() {
   return addresses;
 }
 
-// Iniciar servidor
-server.listen(CONFIG.PORT, () => {
-  const addresses = getLocalIPs();
-  
-  logger.info(`Servidor WebRTC Otimizado v2.0.0 rodando na porta ${CONFIG.PORT}`);
-  logger.info(`Configurado para: ${CONFIG.TARGET_RESOLUTION}@${CONFIG.TARGET_FRAMERATE}fps, ${CONFIG.MAX_BITRATE}kbps`);
-  
-  if (addresses.length > 0) {
-    logger.info('Servidor disponível nos seguintes endereços:');
-    addresses.forEach(addr => {
-      logger.info(`- http://${addr.address}:${CONFIG.PORT} (${addr.interface})`);
+/**
+ * Função para iniciar o servidor
+ */
+function startServer() {
+  server.listen(CONFIG.PORT, () => {
+    const addresses = getLocalIPs();
+    
+    logger.info(`Servidor WebRTC Otimizado v2.1.0 rodando na porta ${CONFIG.PORT}`);
+    logger.info(`Configurado para: ${CONFIG.TARGET_RESOLUTION}@${CONFIG.TARGET_FRAMERATE}fps, ${CONFIG.MAX_BITRATE}kbps`);
+    
+    if (addresses.length > 0) {
+      logger.info('Servidor disponível nos seguintes endereços:');
+      addresses.forEach(addr => {
+        logger.info(`- http://${addr.address}:${CONFIG.PORT} (${addr.interface})`);
+      });
+    } else {
+      logger.info(`Interface web disponível em http://localhost:${CONFIG.PORT}`);
+    }
+  });
+}
+
+/**
+ * Função principal para inicializar o servidor com suporte a múltiplos cores
+ */
+function initServer() {
+  // Se estamos no modo de produção e somos o processo master, criar workers
+  if (CONFIG.ENABLE_CLUSTERING && cluster.isMaster) {
+    const numCPUs = os.cpus().length;
+    const numWorkers = Math.max(2, Math.min(numCPUs - 1, 4)); // Usar 2-4 cores
+    
+    logger.info(`Iniciando servidor em modo cluster com ${numWorkers} workers`);
+    
+    for (let i = 0; i < numWorkers; i++) {
+      cluster.fork();
+    }
+    
+    cluster.on('exit', (worker, code, signal) => {
+      logger.warning(`Worker ${worker.process.pid} morreu (${signal || code}). Reiniciando...`);
+      cluster.fork();
     });
   } else {
-    logger.info(`Interface web disponível em http://localhost:${CONFIG.PORT}`);
+    // Worker ou modo de desenvolvimento: iniciar servidor normalmente
+    startServer();
   }
-});
+}
+
+// Iniciar o servidor
+initServer();

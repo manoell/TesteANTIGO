@@ -27,34 +27,30 @@
 
 - (void)renderFrame:(RTCVideoFrame *)frame {
     writeLog(@"[RTCFrameCaptor] Frame recebido: %dx%d, buffer type: %@",
-             (int)frame.width, (int)frame.height, NSStringFromClass([frame.buffer class]));
-             
-    // Se o buffer for RTCCVPixelBuffer, vamos verificar seu estado
-    if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
-        RTCCVPixelBuffer *cvBuffer = (RTCCVPixelBuffer *)frame.buffer;
-        CVPixelBufferRef pixelBuffer = cvBuffer.pixelBuffer;
-        
-        if (pixelBuffer) {
-            size_t width = CVPixelBufferGetWidth(pixelBuffer);
-            size_t height = CVPixelBufferGetHeight(pixelBuffer);
-            OSType format = CVPixelBufferGetPixelFormatType(pixelBuffer);
-            
-            writeLog(@"[RTCFrameCaptor] CVPixelBuffer: %dx%d, formato: %d",
-                    (int)width, (int)height, (int)format);
-        } else {
-            writeLog(@"[RTCFrameCaptor] CVPixelBuffer é NULL mesmo com RTCCVPixelBuffer válido");
-        }
-    } else {
-        writeLog(@"[RTCFrameCaptor] Frame não é RTCCVPixelBuffer, é: %@",
-                NSStringFromClass([frame.buffer class]));
-    }
+             (int)frame.width, (int)frame.height, NSStringFromClass([frame class]));
     
     @synchronized (self) {
         _lastCapturedFrame = frame;
+        // Verificamos se podemos obter um CVPixelBuffer do frame
         if ([frame.buffer isKindOfClass:[RTCCVPixelBuffer class]]) {
             _lastCVPixelBuffer = (RTCCVPixelBuffer *)frame.buffer;
+            
+            // Verificar se o pixelBuffer é válido
+            CVPixelBufferRef pixelBuffer = _lastCVPixelBuffer.pixelBuffer;
+            if (pixelBuffer) {
+                size_t width = CVPixelBufferGetWidth(pixelBuffer);
+                size_t height = CVPixelBufferGetHeight(pixelBuffer);
+                OSType format = CVPixelBufferGetPixelFormatType(pixelBuffer);
+                
+                writeLog(@"[RTCFrameCaptor] CVPixelBuffer: %dx%d, formato: %d",
+                       (int)width, (int)height, (int)format);
+            } else {
+                writeLog(@"[RTCFrameCaptor] CVPixelBuffer é NULL mesmo com RTCCVPixelBuffer válido");
+            }
         } else {
             _lastCVPixelBuffer = nil;
+            writeLog(@"[RTCFrameCaptor] Frame não é RTCCVPixelBuffer, é: %@",
+                   NSStringFromClass([frame class]));
         }
         _lastCaptureTime = CACurrentMediaTime();
         _hasNewFrame = YES;
@@ -1121,7 +1117,6 @@
 
 #pragma mark - Funcionalidades para substituição de câmera
 
-// Implementação corrigida para capturar e converter frames do WebRTC
 - (CMSampleBufferRef)getCurrentFrame:(CMSampleBufferRef)originSampleBuffer forceReNew:(BOOL)forceReNew {
     // Incrementar contador de frames
     self.frameCounter++;
@@ -1168,33 +1163,6 @@
         self.hasLoggedFrameError = YES;
     }
     
-    // Para fins de diagnóstico, gerar um padrão de teste
-    // Depois que confirmarmos que o resto do sistema está funcionando, podemos remover isso
-    BOOL useTestPattern = YES; // Temporário para depuração
-    
-    if (useTestPattern) {
-        // Determinar as dimensões e formato para o buffer de teste
-        size_t width = 640;
-        size_t height = 480;
-        OSType format = kCVPixelFormatType_32BGRA;
-        
-        // Se temos um buffer original, usar suas propriedades
-        if (originSampleBuffer) {
-            CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
-            if (imageBuffer) {
-                width = CVPixelBufferGetWidth(imageBuffer);
-                height = CVPixelBufferGetHeight(imageBuffer);
-                format = CVPixelBufferGetPixelFormatType(imageBuffer);
-            }
-        }
-        
-        // Criar um buffer com um padrão visual simples
-        CMSampleBufferRef testBuffer = [self createTestPatternBuffer:width height:height format:format];
-        if (testBuffer) {
-            return testBuffer;
-        }
-    }
-    
     // Obter o CVPixelBuffer diretamente do último frame renderizado
     RTCCVPixelBuffer *rtcCVBuffer = self.frameCaptor.lastCVPixelBuffer;
     CVPixelBufferRef rtcPixelBuffer = rtcCVBuffer ? rtcCVBuffer.pixelBuffer : NULL;
@@ -1207,37 +1175,62 @@
             writeLog(@"[WebRTCManager] Esperando receber frames válidos do WebRTC...");
             lastLogTime = currentTime;
         }
+        
+        // Para fins de debug, verificar se devemos usar padrão de teste
+        BOOL useTestPattern = YES; // Use padrão de teste quando não temos frame real
+        
+        if (useTestPattern) {
+            // Determinar as dimensões e formato para o buffer de teste
+            size_t width = 640;
+            size_t height = 480;
+            OSType format = kCVPixelFormatType_32BGRA;
+            
+            // Se temos um buffer original, usar suas propriedades
+            if (originSampleBuffer) {
+                CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
+                if (imageBuffer) {
+                    width = CVPixelBufferGetWidth(imageBuffer);
+                    height = CVPixelBufferGetHeight(imageBuffer);
+                    format = CVPixelBufferGetPixelFormatType(imageBuffer);
+                }
+            }
+            
+            // Criar um buffer com um padrão visual simples
+            CMSampleBufferRef testBuffer = [self createTestPatternBuffer:width height:height format:format];
+            if (testBuffer) {
+                return testBuffer;
+            }
+        }
+        
         return originSampleBuffer;
     }
     
-    // Extrair informações do buffer original
-    OSType pixelFormat = kCVPixelFormatType_32BGRA; // Formato padrão
+    // Extrair informações do buffer do WebRTC
+    OSType pixelFormat = CVPixelBufferGetPixelFormatType(rtcPixelBuffer);
     size_t sourceWidth = CVPixelBufferGetWidth(rtcPixelBuffer);
     size_t sourceHeight = CVPixelBufferGetHeight(rtcPixelBuffer);
     
     // Log detalhado sobre dimensões do frame (controlado)
     if (shouldLog) {
-        writeLog(@"[WebRTCManager] Processando frame WebRTC: %ldx%ld para saída: %ldx%ld",
-                 (long)sourceWidth, (long)sourceHeight,
-                 (long)sourceWidth, (long)sourceHeight);
+        writeLog(@"[WebRTCManager] Processando frame WebRTC: %ldx%ld, formato: %d",
+                 (long)sourceWidth, (long)sourceHeight, (int)pixelFormat);
     }
     
     // Se temos um buffer original, extrair suas propriedades
+    OSType targetFormat = pixelFormat;
     if (originSampleBuffer) {
         CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(originSampleBuffer);
         if (imageBuffer) {
-            pixelFormat = CVPixelBufferGetPixelFormatType(imageBuffer);
-            sourceWidth = CVPixelBufferGetWidth(imageBuffer);
-            sourceHeight = CVPixelBufferGetHeight(imageBuffer);
+            targetFormat = CVPixelBufferGetPixelFormatType(imageBuffer);
+            if (shouldLog) {
+                writeLog(@"[WebRTCManager] Formato alvo do buffer original: %d", (int)targetFormat);
+            }
         }
     }
     
     // Tentar usar diretamente o rtcPixelBuffer para formatos compatíveis
-    BOOL canUseDirectly = pixelFormat == CVPixelBufferGetPixelFormatType(rtcPixelBuffer);
-    if (canUseDirectly &&
-        sourceWidth == CVPixelBufferGetWidth(rtcPixelBuffer) &&
-        sourceHeight == CVPixelBufferGetHeight(rtcPixelBuffer)) {
-        
+    BOOL canUseDirectly = pixelFormat == targetFormat;
+    if (canUseDirectly) {
         if (shouldLog) {
             writeLog(@"[WebRTCManager] Usando PixelBuffer WebRTC diretamente - formato e tamanho compatíveis");
         }
@@ -1303,7 +1296,7 @@
     // Método padrão: criar um novo pixel buffer para o resultado
     CVPixelBufferRef outputPixelBuffer = NULL;
     NSDictionary *pixelBufferAttributes = @{
-        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(pixelFormat),
+        (NSString *)kCVPixelBufferPixelFormatTypeKey: @(targetFormat),
         (NSString *)kCVPixelBufferWidthKey: @(sourceWidth),
         (NSString *)kCVPixelBufferHeightKey: @(sourceHeight),
         (NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
@@ -1313,7 +1306,7 @@
         kCFAllocatorDefault,
         sourceWidth,
         sourceHeight,
-        pixelFormat,
+        targetFormat,
         (__bridge CFDictionaryRef)pixelBufferAttributes,
         &outputPixelBuffer
     );
@@ -1334,14 +1327,14 @@
     // Log de formatos (controlado)
     if (shouldLog) {
         writeLog(@"[WebRTCManager] Formato de pixel - Entrada: %d, Saída: %d",
-                 (int)rtcFormat, (int)pixelFormat);
+                 (int)rtcFormat, (int)targetFormat);
     }
     
     // Processar baseado no formato
     BOOL copySuccess = NO;
     
     // Para formato BGRA
-    if (pixelFormat == kCVPixelFormatType_32BGRA) {
+    if (targetFormat == kCVPixelFormatType_32BGRA) {
         // Converter para BGRA se necessário, ou copiar diretamente
         if (rtcFormat == kCVPixelFormatType_32BGRA) {
             // Cópia direta de BGRA para BGRA
@@ -1373,11 +1366,7 @@
                 writeLog(@"[WebRTCManager] Tentando converter de YUV para BGRA");
             }
             
-            // Tentar usar um método alternativo para converter YUV para BGRA
-            // Em projetos reais, você pode implementar a conversão usando aceleração de hardware
-            // ou bibliotecas como vImage.
-            
-            // Por simplicidade, gerar pattern para demonstração
+            // Criar padrão para demonstração
             uint8_t *dstData = CVPixelBufferGetBaseAddress(outputPixelBuffer);
             size_t dstBytesPerRow = CVPixelBufferGetBytesPerRow(outputPixelBuffer);
             
@@ -1404,8 +1393,8 @@
         }
     }
     // Para formatos YUV (NV12, etc.)
-    else if (pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
-             pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
+    else if (targetFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
+             targetFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) {
         
         // Verificar se o formato de entrada também é YUV
         if (rtcFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
@@ -1454,7 +1443,6 @@
                 writeLog(@"[WebRTCManager] Tentando converter de BGRA para YUV");
             }
             
-            // Conversão de outro formato para YUV
             // Implementação simplificada para demonstração
             uint8_t *dstY = CVPixelBufferGetBaseAddressOfPlane(outputPixelBuffer, 0);
             uint8_t *dstUV = CVPixelBufferGetBaseAddressOfPlane(outputPixelBuffer, 1);

@@ -30,6 +30,7 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 @property (nonatomic, assign, readonly) BOOL isReceivingFrames;
 @property (nonatomic, assign, readonly) BOOL isSubstitutionActive;
 @property (nonatomic, strong, readonly) RTCVideoTrack *videoTrack;
+@property (nonatomic, assign, readonly) BOOL userRequestedDisconnect;  // Propriedade adicionada para controlar desconexões iniciadas pelo usuário
 
 // Inicializa o gerenciador WebRTC com o delegate fornecido
 - (instancetype)initWithDelegate:(id<WebRTCManagerDelegate>)delegate;
@@ -43,6 +44,9 @@ typedef NS_ENUM(NSInteger, WebRTCManagerState) {
 
 // Envia mensagem de despedida para o servidor antes de desconectar
 - (void)sendByeMessage;
+
+// Define o status de desconexão solicitada pelo usuário
+- (void)setUserRequestedDisconnect:(BOOL)requested;
 
 // Ativa ou desativa a substituição da câmera
 - (void)setSubstitutionActive:(BOOL)active;

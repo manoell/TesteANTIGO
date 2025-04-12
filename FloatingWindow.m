@@ -58,13 +58,15 @@
         // Frame for expanded state (almost full screen with margins)
         CGFloat margin = 20.0;
         CGFloat expandedWidth = screenBounds.size.width - (2 * margin);
-        CGFloat expandedHeight = expandedWidth * 9 / 16 + 80; // 16:9 aspect ratio + space for buttons
+        CGFloat expandedHeight = expandedWidth * 9 / 16 + 60; // Seu valor atual
+        CGFloat xPosition = margin;
+        CGFloat yPosition = (screenBounds.size.height - expandedHeight) / 2; // Centralizar verticalmente
         self.expandedFrame = CGRectMake(
-                                        margin,
-                                        margin + 10,
-                                        expandedWidth,
-                                        expandedHeight
-                                        );
+                                     xPosition,
+                                     yPosition,
+                                     expandedWidth,
+                                     expandedHeight
+                                     );
         
         // Frame for minimized state (AssistiveTouch style)
         CGFloat minimizedSize = 50;
@@ -132,7 +134,7 @@
     [self.contentView addSubview:self.videoView];
     
     // Calcular altura para manter proporção 16:9
-    CGFloat videoHeight = self.expandedFrame.size.width * 9.0 / 16.0;
+    CGFloat videoHeight = (self.expandedFrame.size.width * 9.0 / 16.0) + 20;
     [NSLayoutConstraint activateConstraints:@[
         [self.videoView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
         [self.videoView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor],
@@ -391,7 +393,7 @@
         // Se WebRTCManager está disponível, ative a substituição
         if (self.webRTCManager) {
             // Redefinir flag de desconexão solicitada pelo usuário
-            self.webRTCManager.userRequestedDisconnect = NO;
+            [self.webRTCManager setUserRequestedDisconnect:NO];
             
             [self.webRTCManager setSubstitutionActive:YES];
             
@@ -424,7 +426,7 @@
             // Desconectar WebRTC completamente quando o burlador for desativado
             if (self.webRTCManager.state != WebRTCManagerStateDisconnected) {
                 // Marcar como solicitação do usuário
-                self.webRTCManager.userRequestedDisconnect = YES;
+                [self.webRTCManager setUserRequestedDisconnect:YES];
                 
                 // Enviar bye para desconectar de forma adequada
                 [self.webRTCManager sendByeMessage];

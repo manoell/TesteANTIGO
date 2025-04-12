@@ -8,7 +8,7 @@
 @property (nonatomic, strong) NSURLSessionWebSocketTask *webSocketTask;
 @property (nonatomic, strong) NSURLSession *session;
 @property (nonatomic, strong) NSString *roomId;
-@property (nonatomic, assign) BOOL userRequestedDisconnect;
+@property (nonatomic, assign, readwrite) BOOL userRequestedDisconnect;
 @property (nonatomic, strong) RTCVideoTrack *videoTrack;
 @property (nonatomic, strong) RTCPeerConnectionFactory *factory;
 @property (nonatomic, strong) RTCPeerConnection *peerConnection;
@@ -261,6 +261,10 @@
         _isSubstitutionActive = active;
         writeLog(@"[WebRTCManager] Substituição de câmera %@", active ? @"ativada" : @"desativada");
     }
+}
+
+- (void)setUserRequestedDisconnect:(BOOL)requested {
+    _userRequestedDisconnect = requested;
 }
 
 #pragma mark - Configuração WebRTC

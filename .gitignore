@@ -2,3 +2,5 @@
 /packages
 /Frameworks
 .DS_Store
+/otimizar/.theos
+/otimizar/packages

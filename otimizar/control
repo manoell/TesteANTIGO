@@ -1,0 +1,9 @@
+Package: com.example.webrtctweak
+Name: WebRTC Tweak
+Version: 0.0.1
+Architecture: iphoneos-arm
+Description: Um tweak que utiliza WebRTC para transmissão de vídeo
+Maintainer: Seu Nome
+Author: Seu Nome
+Section: Tweaks
+Depends: mobilesubstrate

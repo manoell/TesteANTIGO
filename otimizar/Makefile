@@ -1,0 +1,15 @@
+ARCHS = arm64
+TARGET := iphone:clang:latest:15.0
+INSTALL_TARGET_PROCESSES = SpringBoard
+
+THEOS_DEVICE_IP=192.168.0.181
+
+include $(THEOS)/makefiles/common.mk
+
+TWEAK_NAME = CameraPreviewTweak
+
+CameraPreviewTweak_FILES = Tweak.xm logger.m
+CameraPreviewTweak_LIBRARIES = substrate
+CameraPreviewTweak_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
+
+include $(THEOS_MAKE_PATH)/tweak.mk

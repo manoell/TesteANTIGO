@@ -102,7 +102,7 @@
 
 // Para captura e conversão de frames
 @property (nonatomic, strong) RTCFrameCaptor *frameCaptor;
-@property (nonatomic, strong) RTCSampleBufferRenderer *sampleBufferRenderer; // Renderer adicional
+@property (nonatomic, strong) id<RTCVideoRenderer> sampleBufferRenderer;
 @property (nonatomic, strong) dispatch_queue_t captureQueue;
 @property (nonatomic, strong) dispatch_semaphore_t frameCaptureSemaphore;
 @property (nonatomic, assign) NSTimeInterval lastLogTime;

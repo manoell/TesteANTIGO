@@ -23,17 +23,13 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;style&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>:root {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--primary-color: #2563EB;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--primary-hover: #1D4ED8;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--danger-color: #DC2626;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--danger-hover: #B91C1C;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--success-color: #16A34A;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--warning-color: #F59E0B;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--text-color: #E5E7EB;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--bg-color: #1F2937;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--card-bg: #111827;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--border-color: #374151;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--border-hover: #4B5563;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>--transition-speed: 0.2s;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>* {</span></p>
@@ -51,7 +47,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>min-height: 100vh;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: flex;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>flex-direction: column;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>line-height: 1.5;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.container {</span></p>
@@ -80,7 +75,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 700;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>text-align: center;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: background-color var(--transition-speed) ease;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.status-offline {</span></p>
@@ -102,11 +96,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1.5rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: 1px solid var(--border-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: border-color var(--transition-speed) ease;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.card:hover {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-color: var(--border-hover);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.flex {</span></p>
@@ -144,13 +133,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: var(--text-color);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 1rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 1rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>input[type="text"]:focus, select:focus {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>outline: none;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-color: var(--primary-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>button {</span></p>
@@ -159,7 +141,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-weight: 600;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>cursor: pointer;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 1rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: all var(--transition-speed) ease;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: all 0.2s ease;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border: none;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: inline-flex;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>align-items: center;</span></p>
@@ -178,7 +160,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-primary:hover:not(:disabled) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--primary-hover);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: #1D4ED8;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-danger {</span></p>
@@ -187,7 +169,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-danger:hover:not(:disabled) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--danger-hover);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: #B91C1C;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.btn-group {</span></p>
@@ -214,7 +196,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>max-height: 200px;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>overflow-y: auto;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: opacity var(--transition-speed) ease;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>footer {</span></p>
@@ -228,15 +209,6 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.hidden {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>display: none;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.fade-in {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>animation: fadeIn 0.3s ease-in-out;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>@keyframes fadeIn {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>from { opacity: 0; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>to { opacity: 1; }</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>/* Otimizações para UI em dispositivos de alta resolução */</span></p>
@@ -260,7 +232,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 0.8rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-right: 0.5rem;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-bottom: 0.5rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: background-color var(--transition-speed) ease;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.quality-info {</span></p>
@@ -318,79 +289,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.quality-indicator.active {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--success-color);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>/* Animação de pulso para conexão ativa */</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.pulse {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>animation: pulse 2s infinite;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>@keyframes pulse {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>0% { opacity: 1; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>50% { opacity: 0.6; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>100% { opacity: 1; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>/* Notificações */</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.notification {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>position: fixed;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>bottom: 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>right: 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 12px 20px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--success-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: white;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 6px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>z-index: 1000;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transform: translateY(100px);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>opacity: 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transition: transform 0.3s ease, opacity 0.3s ease;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.notification.show {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>transform: translateY(0);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>opacity: 1;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.notification.error {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--danger-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.notification.warning {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: var(--warning-color);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>/* Log de eventos */</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-family: monospace;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>font-size: 0.8rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>max-height: 100px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>overflow-y: auto;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-top: 1rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>padding: 0.5rem;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>background-color: rgba(0, 0, 0, 0.1);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>border-radius: 4px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log p {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin: 2px 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log .time {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: #9CA3AF;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>margin-right: 5px;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log .error {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: #EF4444;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log .success {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: #10B981;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>.event-log .warning {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>color: #F59E0B;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</span></p>
 <p class="p1"><span class="s1">&lt;/head&gt;</span></p>
 <p class="p1"><span class="s1">&lt;body&gt;</span></p>
@@ -438,10 +336,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;button id="startButton" class="btn-primary"&gt;Iniciar Transmissão&lt;/button&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;button id="stopButton" class="btn-danger" disabled&gt;Parar Transmissão&lt;/button&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;div id="eventLog" class="event-log hidden"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>&lt;!-- Eventos serão inseridos aqui --&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>&lt;div class="card"&gt;</span></p>
@@ -477,10 +371,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>WebRTC Camera Preview Tweak - Otimizado para Rede Local 5GHz 4K</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/footer&gt;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;div id="notification" class="notification"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>&lt;!-- Notificações serão mostradas aqui --&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;script&gt;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// ==== Variáveis globais ====</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Elementos da página</span></p>
@@ -498,8 +388,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const resolutionBadge = document.getElementById('resolutionBadge');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const fpsBadge = document.getElementById('fpsBadge');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const codecBadge = document.getElementById('codecBadge');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const eventLog = document.getElementById('eventLog');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const notification = document.getElementById('notification');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const qualityIndicators = [</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>document.getElementById('quality1'),</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>document.getElementById('quality2'),</span></p>
@@ -517,12 +405,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let lastFrameCount = 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let framesPerSecond = 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let isConnectionActive = false;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let reconnectAttempts = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let maxReconnectAttempts = 5;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let lastBitrate = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let lastPacketLoss = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let autoReconnect = true;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>let serverConfig = null;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Configurações do WebRTC</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>const rtcConfig = {</span></p>
@@ -549,7 +431,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function initialize() {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Inicializando...', 'connecting');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('Inicializando sistema WebRTC');</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Verificar suporte a getUserMedia</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {</span></p>
@@ -579,10 +460,8 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (videoDevices.length === 0) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Nenhuma câmera encontrada', 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Nenhuma câmera encontrada', 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} else {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Pronto para transmitir', 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Sistema pronto para transmissão', 'success');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Configurar IDs de câmera preferenciais para melhor qualidade</span></p>
@@ -594,17 +473,11 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (preferredCameras.length &gt; 0) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoSource.value = preferredCameras[0].deviceId;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Câmera selecionada: ${preferredCameras[0].label}`, 'info');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Mostrar painel de eventos</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>eventLog.classList.remove('hidden');</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao inicializar:', error);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro: ${error.message}`, 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Erro ao inicializar: ${error.message}`, 'error');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>showNotification(error.message, 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -619,7 +492,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const quality = videoQualities[videoQuality.value];</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const fps = parseInt(frameRate.value);</span></p>
 <p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Configurando vídeo: ${quality.width}x${quality.height} a ${fps}fps`, 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Configurando vídeo: ${quality.width}x${quality.height} a ${fps}fps`);</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const constraints = {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>audio: false,<span class="Apple-converted-space">  </span>// Não precisamos de áudio para VCAM</span></p>
@@ -637,7 +510,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const videoTrack = localStream.getVideoTracks()[0];</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (videoTrack) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const settings = videoTrack.getSettings();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Câmera configurada: ${settings.width}x${settings.height}@${settings.frameRate || 'N/A'}fps`, 'success');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Configurações reais do vídeo:', settings);</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Atualizar badges de qualidade</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>resolutionBadge.textContent = `${settings.width}x${settings.height}`;</span></p>
@@ -645,9 +518,9 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>codecBadge.textContent = videoTrack.contentHint || 'H.264';</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>videoStats.innerHTML = `Fonte: ${videoTrack.label}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`Resolução: ${settings.width}x${settings.height}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`FPS: ${settings.frameRate || 'desconhecido'}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                          </span>`Aspect Ratio: ${(settings.width/settings.height).toFixed(2)}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                      </span>`Resolução: ${settings.width}x${settings.height}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                      </span>`FPS: ${settings.frameRate || 'desconhecido'}&lt;br&gt;` +</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                      </span>`Aspect Ratio: ${(settings.width/settings.height).toFixed(2)}`;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>statsPanel.classList.remove('hidden');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -656,8 +529,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao acessar câmera:', error);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro ao acessar câmera: ${error.message}`, 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Erro ao acessar câmera: ${error.message}`, 'error');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>showNotification('Não foi possível acessar a câmera. Verifique as permissões.', 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>throw error;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
@@ -670,7 +541,7 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Adicionar stream de vídeo</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>localStream.getTracks().forEach(track =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Adicionando track: ${track.kind}`, 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log(`Adicionando track: ${track.kind}`);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection.addTrack(track, localStream);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>});</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -688,7 +559,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>peerConnection.oniceconnectionstatechange = () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Estado ICE alterado: ${peerConnection.iceConnectionState}`, 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('ICE State:', peerConnection.iceConnectionState);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectionStats.innerHTML = `ICE State: ${peerConnection.iceConnectionState}`;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Atualizar qualidade da conexão com base no estado ICE</span></p>
@@ -698,40 +569,21 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>peerConnection.iceConnectionState === 'completed') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Conectado ao dispositivo iOS', true);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>isConnectionActive = true;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>reconnectAttempts = 0; // Resetar contagem de tentativas quando conectado</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>showNotification('Conexão estabelecida com sucesso!', 'success');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>} else if (peerConnection.iceConnectionState === 'disconnected' ||</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                          </span>peerConnection.iceConnectionState === 'failed' ||</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                          </span>peerConnection.iceConnectionState === 'closed') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus('Dispositivo desconectado', false);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>isConnectionActive = false;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Verificar se usuário não desconectou manualmente e se autoReconnect está ativo</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (autoReconnect &amp;&amp; !reconnectTimeout &amp;&amp;<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>peerConnection.iceConnectionState !== 'closed' &amp;&amp;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>reconnectAttempts &lt; maxReconnectAttempts &amp;&amp;<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>!stopButton.disabled) { // Não reconectar se o botão de parar estiver desabilitado (isso significa que o usuário parou manualmente)</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>logEvent(`Tentativa de reconexão em ${delay/1000} segundos...`, 'warning');</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Tentar reconexão automática (apenas para desconexões)</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (peerConnection.iceConnectionState === 'disconnected' &amp;&amp; !reconnectTimeout) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>reconnectTimeout = setTimeout(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// Verificar novamente se o usuário não desconectou manualmente</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (!isConnectionActive &amp;&amp; autoReconnect &amp;&amp; !stopButton.disabled) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>reconnectAttempts++;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>logEvent(`Tentando reconexão (${reconnectAttempts}/${maxReconnectAttempts})...`, 'warning');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (isConnectionActive === false &amp;&amp; !stopButton.disabled) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>console.log('Tentando reconexão automática...');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>createAndSendOffer();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>reconnectTimeout = null;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>} else {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>logEvent('Reconexão cancelada - desconexão manual detectada', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>reconnectTimeout = null;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, delay);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>} else if (!autoReconnect) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>logEvent('Reconexão automática desativada pelo usuário', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>} else if (reconnectAttempts &gt;= maxReconnectAttempts) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>logEvent('Limite de reconexões atingido. Tente reiniciar manualmente.', 'error');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>showNotification('Não foi possível reconectar. Inicie novamente.', 'error');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}, 5000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
@@ -781,33 +633,11 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const stats = await peerConnection.getStats();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let outboundRtpStats;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let currentFrameCount = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let bitrateKbps = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let packetsLost = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let packetsTotal = 0;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stats.forEach(stat =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (stat.type === 'outbound-rtp' &amp;&amp; stat.kind === 'video') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>outboundRtpStats = stat;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>currentFrameCount = stat.framesSent || 0;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Calcular bitrate se tivermos timestamps</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (stat.bytesSent &amp;&amp; stat.timestamp &amp;&amp; lastBitrate.timestamp) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>const duration = (stat.timestamp - lastBitrate.timestamp) / 1000; // em segundos</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (duration &gt; 0) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>bitrateKbps = 8 * (stat.bytesSent - lastBitrate.bytesSent) / duration / 1000;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>lastBitrate = {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>bytesSent: stat.bytesSent,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>timestamp: stat.timestamp</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>};</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Coletar dados sobre perda de pacotes</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (stat.type === 'remote-inbound-rtp' &amp;&amp; stat.kind === 'video') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>packetsLost = stat.packetsLost || 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>packetsTotal = stat.packetsReceived || 0;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -824,71 +654,38 @@
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Atualizar a badge de FPS com o valor atual</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>fpsBadge.textContent = `${Math.round(framesPerSecond)} FPS`;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Calcular perda de pacotes em percentual</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>let packetLossRate = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (packetsTotal + packetsLost &gt; 0) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>packetLossRate = (packetsLost / (packetsTotal + packetsLost)) * 100;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>connectionStats.innerHTML = `ICE State: ${peerConnection.iceConnectionState}&lt;br&gt;` +</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Dados enviados: ${formatBytes(bytesSent)}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Bitrate: ${bitrateKbps.toFixed(1)} kbps&lt;br&gt;` +</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Pacotes enviados: ${packetsSent}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Perda de pacotes: ${packetLossRate.toFixed(1)}%&lt;br&gt;` +</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`Frames enviados: ${framesSent}&lt;br&gt;` +</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`FPS atual: ${framesPerSecond.toFixed(1)}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                                               </span>`FPS atual: ${framesPerSecond || 'desconhecido'}`;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                                               </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Ajustar qualidade com base em estatísticas</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateConnectionQuality(bitrateKbps, framesPerSecond, packetLossRate);</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Enviar relatório de qualidade para o servidor</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>sendMessage({</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type: 'quality-report',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>metrics: {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>bitrate: bitrateKbps,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>fps: framesPerSecond,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>packetLoss: packetLossRate,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>framesSent: framesSent,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>resolution: resolutionBadge.textContent,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>codec: codecBadge.textContent</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>},</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>requireAck: false</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>});</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateConnectionQuality(bytesSent, framesPerSecond);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 1000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Ajustar indicadores de qualidade baseado em métricas</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function updateConnectionQuality(bitrate, fps, packetLoss) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function updateConnectionQuality(bytesSent, fps) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let qualityLevel = 0;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Verificar taxa de bits (bitrate)</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bitrate &gt; 5000) qualityLevel++; // &gt; 5 Mbps</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bitrate &gt; 15000) qualityLevel++; // &gt; 15 Mbps</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bitrate &gt; 30000) qualityLevel++; // &gt; 30 Mbps</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bitrate &gt; 45000) qualityLevel++; // &gt; 45 Mbps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Verifica taxa de bits (bitrate)</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const kbitsPerSecond = bytesSent * 8 / 1000; // Convertendo bytes para kilobits</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (kbitsPerSecond &gt; 5000) qualityLevel++; // &gt; 5 Mbps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (kbitsPerSecond &gt; 15000) qualityLevel++; // &gt; 15 Mbps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (kbitsPerSecond &gt; 30000) qualityLevel++; // &gt; 30 Mbps</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (kbitsPerSecond &gt; 45000) qualityLevel++; // &gt; 45 Mbps</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Ajuste baseado em FPS</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (fps &lt; 15 &amp;&amp; qualityLevel &gt; 0) qualityLevel--;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Ajuste baseado em perda de pacotes</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (packetLoss &gt; 10 &amp;&amp; qualityLevel &gt; 0) qualityLevel--;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (packetLoss &gt; 20 &amp;&amp; qualityLevel &gt; 0) qualityLevel--;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Atualizar indicadores</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>qualityIndicators.forEach((ind, index) =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ind.classList.toggle('active', index &lt; qualityLevel);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>});</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Avisar sobre problemas de conexão se necessário</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (packetLoss &gt; 15 &amp;&amp; lastPacketLoss &lt;= 15) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('Alta perda de pacotes detectada. A qualidade do vídeo pode ser reduzida.', 'warning');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>lastPacketLoss = packetLoss;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Formatar bytes para exibição</span></p>
@@ -904,12 +701,11 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Conectar ao servidor WebSocket</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function connectWebSocket() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const host = window.location.hostname || 'localhost';</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const port = window.location.port || '8080';</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const urlString = `${protocol}//${host}:${port}`;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const urlString = `${protocol}//localhost:${port}`;</span></p>
 <p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>logEvent(`Conectando ao servidor: ${urlString}`, 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>console.log(`Conectando WebSocket a ${urlString}`);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>updateStatus('Conectando ao servidor...', 'connecting');</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Fechar conexão existente</span></p>
@@ -921,7 +717,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws = new WebSocket(urlString);</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onopen = () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('WebSocket conectado', 'success');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket conectado');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>sendMessage({</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'join',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
@@ -932,34 +728,27 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (connectionCheckInterval) clearInterval(connectionCheckInterval);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectionCheckInterval = setInterval(() =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>ws.send(JSON.stringify({<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type: 'keepalive',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>timestamp: Date.now()<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>ws.send(JSON.stringify({ type: 'keepalive' }));</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}, 15000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onclose = () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('WebSocket desconectado', 'warning');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('WebSocket desconectado');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Desconectado do servidor', false);</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>clearInterval(connectionCheckInterval);</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Tentar reconectar após 3 segundos apenas se a conexão foi perdida inesperadamente</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (autoReconnect &amp;&amp; startButton.disabled &amp;&amp; !stopButton.disabled) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Tentando reconectar ao servidor em 3 segundos...', 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (startButton.disabled &amp;&amp; !stopButton.disabled) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>setTimeout(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (autoReconnect &amp;&amp; startButton.disabled &amp;&amp; !stopButton.disabled) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>connectWebSocket();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>connectWebSocket();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}, 3000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>ws.onerror = (error) =&gt; {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('WebSocket erro:', error);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('Erro na conexão WebSocket', 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus('Erro de conexão', 'offline');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>};</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -979,73 +768,45 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Processar mensagens recebidas</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function handleMessage(message) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const msgType = message.type;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Ignorar logs para keepalive para não poluir console</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (msgType !== 'keepalive-ack') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.log('Mensagem recebida:', msgType);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>console.log('Mensagem recebida:', message.type);</span></p>
 <p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>switch (msgType) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>switch (message.type) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'user-joined':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Dispositivo iOS conectado', 'success');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Dispositivo iOS conectado');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Criar oferta quando o iOS se conectar</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await createAndSendOffer();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'answer':</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Recebendo resposta do iOS</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Resposta SDP recebida', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>try {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>await peerConnection.setRemoteDescription(new RTCSessionDescription({</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>type: 'answer',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>sdp: message.sdp</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}));</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>} catch (error) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>logEvent(`Erro ao processar resposta: ${error.message}`, 'error');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>await peerConnection.setRemoteDescription(new RTCSessionDescription({</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>type: 'answer',</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>sdp: message.sdp</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}));</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'ice-candidate':</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Recebendo candidato ICE</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>try {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (peerConnection) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (peerConnection) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>try {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>await peerConnection.addIceCandidate(new RTCIceCandidate({</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>candidate: message.candidate,</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>sdpMid: message.sdpMid,</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>sdpMLineIndex: message.sdpMLineIndex</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}));</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (message.priority === 'high') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>logEvent('Candidato ICE de rede local processado', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>} catch (e) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>console.error('Erro ao adicionar candidato ICE:', e);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>} catch (error) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>console.error('Erro ao adicionar candidato ICE:', error);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'connection-config':</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Recebendo configurações otimizadas do servidor</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Configurações recebidas do servidor', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>serverConfig = message;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'quality-adjustment':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Servidor está sugerindo ajustes de qualidade</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Ajuste de qualidade: ${message.reason}`, 'warning');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Aplicar ajustes se necessário</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (message.config) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (message.config.targetFramerate &amp;&amp;<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>message.config.targetFramerate !== parseInt(frameRate.value)) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>logEvent(`Ajustando FPS para ${message.config.targetFramerate}`, 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Configurações recebidas do servidor:', message);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'error':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Erro recebido do servidor: ${message.message}`, 'error');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>showNotification(message.message, 'error');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.error('Erro recebido do servidor:', message.message);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>updateStatus(`Erro: ${message.message}`, 'offline');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
@@ -1054,17 +815,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'server-info':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Conectado ao servidor WebRTC v${message.version}`, 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'reconnect-response':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (message.success) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>logEvent(`Reconexão rápida: ${message.hostCandidates} candidatos recebidos`, 'success');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>case 'room-info':</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Sala: ${message.room}, Clientes: ${message.clients}`, 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Informações do servidor:', message);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
@@ -1085,7 +836,7 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Forçar H.264 quando disponível e otimizar seus parâmetros</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (sdp.includes('H264')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('H264 disponível, otimizando para alta qualidade', 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('H264 disponível, otimizando para alta qualidade');</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Melhorar profile do H264 para alta resolução</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp = sdp.replace(/profile-level-id=[0-9a-fA-F]+/g, 'profile-level-id=640032');</span></p>
@@ -1096,14 +847,8 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>'a=fmtp:$1 packetization-mode=1;level-asymmetry-allowed=1$3');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Obter o bitrate alvo da configuração ou usar o valor padrão</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const targetBitrate = serverConfig?.targetBitrate || 50000;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Registrar o valor do bitrate que estamos configurando</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent(`Configurando bitrate alvo: ${targetBitrate} kbps`, 'info');</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Aumentar bitrate para vídeo 4K</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp = setMediaBitrate(sdp, 'video', targetBitrate);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp = setMediaBitrate(sdp, 'video', 50000); // 50Mbps para WiFi 5GHz</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Aplicar a SDP modificada</span></p>
@@ -1119,13 +864,9 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>sdp: peerConnection.localDescription.sdp,</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent('Oferta SDP enviada', 'success');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao criar oferta:', error);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>logEvent(`Erro ao criar oferta WebRTC: ${error.message}`, 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro ao criar oferta WebRTC: ${error.message}`, 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>showNotification('Erro ao estabelecer conexão com o dispositivo', 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -1133,21 +874,11 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function setMediaBitrate(sdp, media, bitrate) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const lines = sdp.split('\n');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let line = -1;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let payloadType = null;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let result = [];</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Encontrar a seção m=video</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>for (let i = 0; i &lt; lines.length; i++) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('m=' + media)) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>line = i;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Extrair os payload types da linha m=video</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const parts = lines[i].split(' ');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (parts.length &gt; 3) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>const payloads = parts.slice(3);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Usar o primeiro payload type (normalmente H264 após nossa otimização)</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>payloadType = payloads[0];</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
@@ -1155,97 +886,30 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (line === -1) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return sdp;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Criar uma cópia das linhas para modificar</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>result = [...lines];</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// 1. Adicionar parâmetros de bitrate principal (b=AS, b=TIAS)</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let bitrateLineIndex = -1;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Procurar linhas de bitrate existentes</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>for (let i = line + 1; i &lt; lines.length; i++) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('m=')) break; // Próxima seção de mídia</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Verificar se já existe uma linha b=AS:</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>let found = false;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>for (let i = line; i &lt; lines.length; i++) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('m=')) break; // Próxima seção m=</span></p>
+<p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (lines[i].startsWith('b=AS:')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Substituir linha existente com valor alto</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>result[i] = 'b=AS:' + bitrate;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>bitrateLineIndex = i;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>lines[i] = 'b=AS:' + bitrate;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>found = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>break;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Se não encontrou, adicionar após linha m=</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (bitrateLineIndex === -1) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Inserir após a linha m=</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>result.splice(line + 1, 0, 'b=AS:' + bitrate);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>result.splice(line + 2, 0, 'b=TIAS:' + (bitrate * 1000));</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Se não encontrou, adicionar após a seção m=</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (!found) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>const newLines = lines.slice(0, line + 1);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>newLines.push('b=AS:' + bitrate);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>newLines.push('b=TIAS:' + (bitrate * 1000));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>newLines.push(...lines.slice(line + 1));</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>return newLines.join('\n');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// 2. Se temos um payload type para H264, adicionar parâmetros específicos</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (payloadType &amp;&amp; bitrate &gt; 10000) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Procurar linha fmtp existente para este payload</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let fmtpLine = -1;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>for (let i = 0; i &lt; result.length; i++) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (result[i].startsWith('a=fmtp:' + payloadType + ' ')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>fmtpLine = i;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>break;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Se encontrou linha fmtp, modificar para incluir parâmetros de alta qualidade</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (fmtpLine !== -1) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Parâmetros para H.264 de alta qualidade</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const existingParams = result[fmtpLine].split(' ')[1];</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const h264Params = {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>'level-asymmetry-allowed': '1',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>'packetization-mode': '1',<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>'max-fr': '60',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>'max-mbps': '489600',</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>'max-fs': '35280'</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>};</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Verificar quais parâmetros já existem</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>let newParams = existingParams;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>for (const [param, value] of Object.entries(h264Params)) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (!newParams.includes(param + '=')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>newParams += ';' + param + '=' + value;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Atualizar a linha</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>result[fmtpLine] = 'a=fmtp:' + payloadType + ' ' + newParams;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// 3. Adicionar parâmetros x-google específicos como novas linhas para afinar o encoder</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>let xGoogleParamsFound = false;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>for (let i = 0; i &lt; result.length; i++) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (result[i].includes('x-google-max-bitrate') ||<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>result[i].includes('x-google-min-bitrate') ||<span class="Apple-converted-space"> </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>result[i].includes('x-google-start-bitrate')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>xGoogleParamsFound = true;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Atualizar valores existentes</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (result[i].includes('x-google-max-bitrate')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>result[i] = 'a=x-google-max-bitrate:' + bitrate;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (result[i].includes('x-google-min-bitrate')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>result[i] = 'a=x-google-min-bitrate:' + Math.floor(bitrate * 0.8);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (result[i].includes('x-google-start-bitrate')) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>result[i] = 'a=x-google-start-bitrate:' + Math.floor(bitrate * 0.9);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!xGoogleParamsFound) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Adicionar após a linha do fmtp ou após a seção m= se fmtp não for encontrado</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>const insertPos = (fmtpLine !== -1) ? fmtpLine + 1 : line + 3;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>result.splice(insertPos, 0, 'a=x-google-max-bitrate:' + bitrate);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>result.splice(insertPos + 1, 0, 'a=x-google-min-bitrate:' + Math.floor(bitrate * 0.8));</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>result.splice(insertPos + 2, 0, 'a=x-google-start-bitrate:' + Math.floor(bitrate * 0.9));</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>return result.join('\n');</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Caso contrário, retornar o SDP modificado</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>return lines.join('\n');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Atualizar status na interface</span></p>
@@ -1258,42 +922,11 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Adicionar a classe apropriada</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (state === true || state === 'online') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('status-online');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Adicionar classe pulse para conexão ativa</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('pulse');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} else if (state === 'connecting') {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('status-connecting');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.remove('pulse');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} else {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.add('status-offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>statusDiv.classList.remove('pulse');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Adicionar log de evento</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function logEvent(message, type = 'info') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const time = new Date().toLocaleTimeString();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>const logLine = document.createElement('p');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>logLine.innerHTML = `&lt;span class="time"&gt;${time}&lt;/span&gt; &lt;span class="${type}"&gt;${message}&lt;/span&gt;`;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>eventLog.appendChild(logLine);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>eventLog.scrollTop = eventLog.scrollHeight;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Limitar número de logs para evitar problemas de performance</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>while (eventLog.children.length &gt; 50) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>eventLog.removeChild(eventLog.children[0]);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Mostrar notificação</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function showNotification(message, type = 'info') {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>notification.textContent = message;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>notification.className = 'notification';</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>notification.classList.add(type);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>notification.classList.add('show');</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>setTimeout(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>notification.classList.remove('show');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 5000);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// ==== Eventos principais ====</span></p>
@@ -1301,7 +934,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>async function startStreaming() {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>try {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (!roomIdInput.value.trim()) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>showNotification("Por favor, informe um ID de sala", "warning");</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>alert("Por favor, informe um ID de sala");</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>return;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
@@ -1322,10 +955,6 @@
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Conectar ao servidor</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>connectWebSocket();</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Reset reconexão</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>reconnectAttempts = 0;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>autoReconnect = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} catch (error) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>console.error('Erro ao iniciar transmissão:', error);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>startButton.disabled = false;</span></p>
@@ -1335,22 +964,11 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>frameRate.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>updateStatus(`Erro: ${error.message}`, 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>showNotification('Erro ao iniciar transmissão', 'error');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Parar transmissão</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>function stopStreaming() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Primeiro, desativar reconexão automática</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>autoReconnect = false;</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Cancelar imediatamente qualquer tentativa de reconexão em andamento</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (reconnectTimeout) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>clearTimeout(reconnectTimeout);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>reconnectTimeout = null;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Atualizar a UI</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>startButton.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>stopButton.disabled = true;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>roomIdInput.disabled = false;</span></p>
@@ -1358,9 +976,13 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>videoQuality.disabled = false;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>frameRate.disabled = false;</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Desativar flags de conexão</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>isConnectionActive = false;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>reconnectAttempts = 0;</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">            </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Cancelar qualquer tentativa de reconexão</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (reconnectTimeout) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>clearTimeout(reconnectTimeout);</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>reconnectTimeout = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Enviar mensagem de despedida</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
@@ -1368,21 +990,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>type: 'bye',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>roomId: roomIdInput.value</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>});</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Dar tempo para a mensagem ser enviada antes de fechar</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>setTimeout(() =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Fechar WebSocket após enviar a mensagem</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (ws) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>ws.close();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>ws = null;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}, 300);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>} else {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>// Fechar WebSocket imediatamente se não está aberto</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>if (ws) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>ws.close();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>ws = null;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Parar monitoramento de estatísticas</span></p>
@@ -1400,6 +1007,12 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (peerConnection) {</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection.close();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>peerConnection = null;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
+<p class="p2"><span class="s1"></span><br></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Fechar WebSocket</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (ws) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ws.close();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>ws = null;</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>// Parar streams</span></p>
@@ -1421,8 +1034,6 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>qualityIndicators.forEach(ind =&gt; ind.classList.remove('active'));</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>updateStatus('Desconectado', 'offline');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>logEvent('Transmissão encerrada manualmente pelo usuário', 'info');</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>showNotification('Conexão encerrada manualmente', 'info');</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>}</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Adicionar event listeners</span></p>
@@ -1449,7 +1060,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>(peerConnection.iceConnectionState === 'disconnected' ||<span class="Apple-converted-space"> </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                     </span>peerConnection.iceConnectionState === 'failed')) {</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>logEvent('Verificando estado da conexão...', 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>console.log('Conexão perdida, verificando estado do WebSocket...');</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                    </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>// Se WebSocket estiver ok mas ICE não, tentar recriar apenas o peer connection</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>if (ws &amp;&amp; ws.readyState === WebSocket.OPEN) {</span></p>
@@ -1457,21 +1068,18 @@
 <p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>type: 'keepalive',</span></p>
 <p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>timestamp: Date.now()<span class="Apple-converted-space"> </span></span></p>
 <p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>}));</span></p>
-<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>logEvent('Enviado keepalive para o servidor', 'info');</span></p>
+<p class="p1"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span>console.log('Enviado keepalive para o servidor');</span></p>
+<p class="p2"><span class="s1"><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span><span class="Apple-tab-span">	</span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>console.log('WebSocket ativo, tentando recriar peer connection...');</span></p>
 <p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (autoReconnect &amp;&amp; reconnectAttempts &lt; maxReconnectAttempts) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>logEvent('WebSocket ativo, tentando recriar conexão...', 'warning');</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// Fechar conexão anterior e criar nova</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>if (peerConnection) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                                </span>peerConnection.close();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>}</span></p>
-<p class="p2"><span class="s1"><span class="Apple-converted-space">                            </span></span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>// Recriar peer connection e enviar nova oferta</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>setupPeerConnection();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>createAndSendOffer();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>reconnectAttempts++;</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Fechar conexão anterior e criar nova</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>if (peerConnection) {</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                            </span>peerConnection.close();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>}</span></p>
+<p class="p2"><span class="s1"><span class="Apple-converted-space">                        </span></span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>// Recriar peer connection e enviar nova oferta</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>setupPeerConnection();</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">                        </span>createAndSendOffer();</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                    </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>}</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}, 15000);</span></p>
@@ -1484,11 +1092,7 @@
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
 <p class="p2"><span class="s1"></span><br></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>// Detectar quando a página é fechada para limpar recursos</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('beforeunload', () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>if (peerConnection || ws) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">                </span>stopStreaming();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">            </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>});</span></p>
+<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>window.addEventListener('beforeunload', stopStreaming);</span></p>
 <p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</span></p>
 <p class="p1"><span class="s1">&lt;/body&gt;</span></p>
 <p class="p1"><span class="s1">&lt;/html&gt;</span></p>
